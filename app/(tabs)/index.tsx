@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fetchRegularApps, fetchVIPApps, AppItem } from '../../constants/data';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
 
 // ==========================================
 // THẺ VIP THÔNG MINH: Lướt tới đâu lấy ảnh tới đó
@@ -54,6 +54,7 @@ const SmartVIPCard = memo(({ item }: { item: AppItem }) => {
 });
 
 export default function HomeScreen() {
+  useThemeUpdate();
   const router = useRouter();
   const [featuredApp, setFeaturedApp] = useState<AppItem | null>(null);
   const [vipApps, setVipApps] = useState<AppItem[]>([]);
@@ -75,7 +76,7 @@ export default function HomeScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 140}}>
         
         <View style={styles.header}>
-          <Text style={styles.dateText}>HÔM NAY</Text>
+          <Text style={styles.dateText}>{TXT.today.toUpperCase()}</Text>
           <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
             <Text style={styles.largeTitle}>Khám phá</Text>
             <TouchableOpacity style={styles.profileBtn} onPress={() => router.push('/account')}>

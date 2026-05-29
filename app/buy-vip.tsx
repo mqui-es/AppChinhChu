@@ -10,7 +10,7 @@ import { X, Sparkles, CheckCircle, Send, Rocket, Gem } from 'lucide-react-native
 
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { COLORS, SIZES, SHADOWS } from '../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate } from '../constants/theme';
 
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXnH5KjwQVafxGW_W2KlpDY9KHBx_0TAmaNZBqUaPz9WR8T1PDKwB9un37fNA_YO7pmg/exec";
 const BANK_ID = "ACB"; const ACCOUNT_NO = "22703611"; const ACCOUNT_NAME = "TRAN NGUYEN MINH QUI"; 
@@ -23,12 +23,15 @@ const PACKAGES = [
 
 const VIP_FEATURES = [
   "Mở khóa toàn bộ Kho Ứng Dụng Độc Quyền",
-  "Tải App với tốc độ Max Speed không giới hạn",
-  "Xóa sạch quảng cáo, không chuyển hướng link",
-  "Bảo hành chứng chỉ (Cert) & Hỗ trợ kỹ thuật 24/7"
+  "Tốc độ tải ứng dụng cực cao (Không giới hạn)",
+  "Không có quảng cáo khó chịu từ hệ thống",
+  "Chứng chỉ luôn được gia hạn tự động ổn định",
+  "Hỗ trợ cài đặt trực tiếp qua OTA nhanh gọn",
+  "Ký và cài đặt file IPA ngoại tuyến của riêng bạn"
 ];
 
 export default function BuyVipScreen() {
+  useThemeUpdate();
   const router = useRouter();
   const [selectedPack, setSelectedPack] = useState(PACKAGES[1]); 
   const [is14DayEnabled, setIs14DayEnabled] = useState(true);

@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { CACHED_REGULAR_APPS, CACHED_VIP_APPS, fetchRegularApps, fetchVIPApps, AppItem } from '../../constants/data';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate } from '../../constants/theme';
 
 const StaticServer = (() => {
   if (Platform.OS === 'web') return null;
@@ -34,6 +34,7 @@ const IpaSigner = (() => {
 const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.dev";
 
 export default function AppDetailScreen() {
+  useThemeUpdate();
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [app, setApp] = useState<AppItem | null>(null);

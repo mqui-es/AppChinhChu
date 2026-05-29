@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fetchRegularApps, AppItem } from '../../constants/data';
 import { ListDownloadBtn } from './search';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
 
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
@@ -69,6 +69,7 @@ const RegularAppRow = memo(({ item }: { item: AppItem }) => {
 });
 
 export default function AppsScreen() {
+  useThemeUpdate();
   const [apps, setApps] = useState<AppItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<string[]>(['Tất cả']);

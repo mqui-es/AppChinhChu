@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, SHADOWS } from '../../constants/theme';
+import { COLORS, SHADOWS, useThemeUpdate } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 const TAB_BAR_WIDTH = width - 32; // Sát lề hơn, nhìn hiện đại và thoáng hơn
@@ -13,6 +13,7 @@ const TAB_COUNT = 6;
 const TAB_WIDTH = (TAB_BAR_WIDTH - 10) / TAB_COUNT;
 
 function FloatingTabBar({ state, descriptors, navigation }: any) {
+  useThemeUpdate();
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

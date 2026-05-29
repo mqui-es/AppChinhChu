@@ -4,14 +4,15 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router'; 
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // SVG TỪ LUCIDE
-import { Fingerprint, User, Mail, Lock, BellRing, Star, Gem, ChevronRight, CloudDownload, Clock, ShieldCheck } from 'lucide-react-native';
+import { Fingerprint, User, Mail, Lock, BellRing, Star, Gem, ChevronRight, CloudDownload, Clock, ShieldCheck, Languages, Palette } from 'lucide-react-native';
 
 import { auth, db } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS, TXT, useThemeUpdate, notifyThemeChange, loadTheme, loadLanguage, THEME_STYLES } from '../../constants/theme';
 
 const GOOGLE_SHEET_WEBHOOK = "https://script.google.com/macros/s/AKfycbyXnH5KjwQVafxGW_W2KlpDY9KHBx_0TAmaNZBqUaPz9WR8T1PDKwB9un37fNA_YO7pmg/exec";
 const ADMIN_EMAIL = "mquitran@gmail.com"; 
@@ -19,6 +20,7 @@ const ADMIN_EMAIL = "mquitran@gmail.com";
 interface UserData { fullname?: string; email?: string; coins?: number; vipExpire?: any; }
 
 export default function AccountScreen() {
+  useThemeUpdate();
   const router = useRouter(); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -29,6 +31,46 @@ export default function AccountScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [sysPopup, setSysPopup] = useState({ show: false, msg: '' });
+
+  const [currentThemeStyle, setCurrentThemeStyle] = useState('obsidian');
+  const [currentLang, setCurrentLang] = useState('vi');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const style = await AsyncStorage.getItem('@app_theme_style') || 'obsidian';
+      const lang = await AsyncStorage.getItem('@app_lang') || 'vi';
+      setCurrentThemeStyle(style);
+      setCurrentLang(lang);
+    };
+    fetchSettings();
+  }, []);
+
+  const toggleLanguage = async () => {
+    const nextLang = currentLang === 'vi' ? 'en' : 'vi';
+    await AsyncStorage.setItem('@app_lang', nextLang);
+    setCurrentLang(nextLang);
+    await loadLanguage();
+    notifyThemeChange();
+  };
+
+  const toggleThemeStyle = async () => {
+    const stylesList = ['obsidian', 'gold', 'neon', 'light'];
+    const currentIndex = stylesList.indexOf(currentThemeStyle);
+    const nextIndex = (currentIndex + 1) % stylesList.length;
+    const nextStyle = stylesList[nextIndex];
+    await AsyncStorage.setItem('@app_theme_style', nextStyle);
+    setCurrentThemeStyle(nextStyle);
+    await loadTheme();
+    notifyThemeChange();
+  };
+
+  const getThemeName = (style: string) => {
+    if (style === 'obsidian') return 'Obsidian iOS 26';
+    if (style === 'gold') return 'Liquid Gold VIP';
+    if (style === 'neon') return 'Cyber Neon';
+    if (style === 'light') return 'Classic Light';
+    return 'Obsidian iOS 26';
+  };
 
   useEffect(() => {
     let unsubDoc: any;
@@ -160,14 +202,14 @@ export default function AccountScreen() {
         </View>
       </Modal>
 
-      <View style={styles.header}><Text style={styles.largeTitle}>Hồ sơ</Text></View>
+      <View style={styles.header}><Text style={styles.largeTitle}>{TXT.profile}</Text></View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
         {/* CARD PROFILE */}
         <View style={[styles.profileCard, SHADOWS.glowCard]}>
           <BlurView intensity={15} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={styles.profileCardInside}>
-            <Image source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData?.fullname || userData?.email || 'U')}&background=0A84FF&color=fff&size=512` }} style={styles.avatar} />
+            <Image source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData?.fullname || userData?.email || 'U')}&background=${COLORS.primary.substring(1)}&color=fff&size=512` }} style={styles.avatar} />
             <View style={styles.profileInfo}>
               <Text style={styles.profileName} numberOfLines={1}>{userData?.fullname || 'Khách hàng'}</Text>
               <Text style={styles.profileEmail} numberOfLines={1}>{userData?.email}</Text>
@@ -178,7 +220,7 @@ export default function AccountScreen() {
                 </LinearGradient>
               ) : (
                 <View style={[styles.vipTag, {backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.8, borderColor: 'rgba(255,255,255,0.06)'}]}>
-                  <Text style={[styles.vipTagText, {color: COLORS.textMuted}]}>Thành viên thường</Text>
+                  <Text style={[styles.vipTagText, {color: COLORS.textMuted}]}>{TXT.vipTagNormal}</Text>
                 </View>
               )}
             </View>
@@ -191,36 +233,46 @@ export default function AccountScreen() {
           <View style={styles.vipBannerLeft}>
             <Gem color={COLORS.gold} size={30} strokeWidth={1.8} />
             <View style={{marginLeft: 15}}>
-              <Text style={[styles.vipBannerTitle, { color: COLORS.gold }]}>{isVipActive ? 'Gia Hạn Gói VIP' : 'Nâng Cấp Gói VIP'}</Text>
-              <Text style={styles.vipBannerSub}>Mở khóa kho ứng dụng Độc quyền</Text>
+              <Text style={[styles.vipBannerTitle, { color: COLORS.gold }]}>{isVipActive ? TXT.vipExtend : TXT.vipUpgrade}</Text>
+              <Text style={styles.vipBannerSub}>{TXT.vipSubText}</Text>
             </View>
           </View>
           <ChevronRight color={COLORS.gold} size={22} />
         </TouchableOpacity>
 
+        {/* CÀI ĐẶT ỨNG DỤNG */}
+        <Text style={styles.groupTitle}>{TXT.settings}</Text>
+        <View style={[styles.group, SHADOWS.glowCard]}>
+          <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={styles.groupInside}>
+            {renderRow(Languages, TXT.language, TXT.langName, '#FF9F0A', false, toggleLanguage)}
+            {renderRow(Palette, TXT.themeStyle, getThemeName(currentThemeStyle), '#BF5AF2', true, toggleThemeStyle)}
+          </View>
+        </View>
+
         <Text style={styles.groupTitle}>TÀI KHOẢN CLOUD</Text>
         <View style={[styles.group, SHADOWS.glowCard]}>
           <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={styles.groupInside}>
-            {renderRow(CloudDownload, 'Kho lưu trữ Đám mây', '5 GB', '#0A84FF', false)}
-            {renderRow(Clock, 'Lịch sử giao dịch', 'Tra cứu', '#32D74B', true)}
+            {renderRow(CloudDownload, TXT.cloudStorage, '5 GB', '#0A84FF', false)}
+            {renderRow(Clock, TXT.history, 'Tra cứu', '#32D74B', true)}
           </View>
         </View>
 
         {userData?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (
           <>
-            <Text style={styles.groupTitle}>QUẢN TRỊ HỆ THỐNG</Text>
+            <Text style={styles.groupTitle}>{TXT.adminArea.toUpperCase()}</Text>
             <View style={[styles.group, SHADOWS.glowCard]}>
               <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFill} />
               <View style={styles.groupInside}>
-                {renderRow(ShieldCheck, 'Khu vực Admin', 'Yêu cầu PIN', '#FF453A', true, () => router.push('/admin'))}
+                {renderRow(ShieldCheck, TXT.adminArea, 'Yêu cầu PIN', '#FF453A', true, () => router.push('/admin'))}
               </View>
             </View>
           </>
         )}
 
         <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Đăng xuất</Text>
+          <Text style={styles.logoutText}>{TXT.logout}</Text>
         </TouchableOpacity>
       </ScrollView>
     </LinearGradient>

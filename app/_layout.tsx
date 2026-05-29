@@ -1,7 +1,13 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { initAppThemeAndLang } from '../constants/theme';
 
 export default function RootLayout() {
+  useEffect(() => {
+    initAppThemeAndLang();
+  }, []);
+
   return (
     <>
       <StatusBar style="light" />

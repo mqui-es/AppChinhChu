@@ -19,11 +19,109 @@ const IpaSigner = (() => {
 })();
 
 import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical } from 'lucide-react-native';
+import { COLORS, useThemeUpdate } from '../../constants/theme';
 
 interface LocalFile { name: string; uri: string; size: string; timestamp: number; }
-interface CertItem { id: string; name: string; p12Uri: string; provUri: string; password: string; }
+interface CertItem { 
+  id: string; 
+  name: string; 
+  p12Uri: string; 
+  provUri: string; 
+  password: string;
+  profileName?: string;
+  teamName?: string;
+  teamId?: string;
+  uuid?: string;
+  expirationDate?: string;
+  isExpired?: boolean;
+}
+
+// Helper: Chuyển đổi Base64 thành chuỗi nhị phân (Binary String) để tìm Plist XML
+const base64ToBinaryString = (base64: string): string => {
+  try {
+    if (typeof atob === 'function') return atob(base64);
+  } catch (e) {}
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) lookup[chars.charCodeAt(i)] = i;
+  const cleanStr = base64.replace(/[^A-Za-z0-9+/]/g, '');
+  let binary = '';
+  for (let i = 0; i < cleanStr.length; i += 4) {
+    const encoded1 = lookup[cleanStr.charCodeAt(i)];
+    const encoded2 = lookup[cleanStr.charCodeAt(i + 1)];
+    const encoded3 = lookup[cleanStr.charCodeAt(i + 2)];
+    const encoded4 = lookup[cleanStr.charCodeAt(i + 3)];
+    const bytes1 = (encoded1 << 2) | (encoded2 >> 4);
+    const bytes2 = ((encoded2 & 15) << 4) | (encoded3 >> 2);
+    const bytes3 = ((encoded3 & 3) << 6) | encoded4;
+    binary += String.fromCharCode(bytes1);
+    if (cleanStr[i + 2] !== '=' && cleanStr[i + 2] !== undefined) binary += String.fromCharCode(bytes2);
+    if (cleanStr[i + 3] !== '=' && cleanStr[i + 3] !== undefined) binary += String.fromCharCode(bytes3);
+  }
+  return binary;
+};
+
+// Helper: Phân tích file MobileProvision để trích xuất thông tin
+const parseMobileProvisionData = (base64Data: string) => {
+  try {
+    const binary = base64ToBinaryString(base64Data);
+    const startTag = '<?xml';
+    const endTag = '</plist>';
+    const startIndex = binary.indexOf(startTag);
+    if (startIndex === -1) return null;
+    const endIndex = binary.indexOf(endTag, startIndex);
+    if (endIndex === -1) return null;
+    const xml = binary.substring(startIndex, endIndex + endTag.length);
+    
+    const parseValue = (key: string): string => {
+      const regex = new RegExp(`<key>${key}</key>\\s*<string>([^<]+)</string>`);
+      const match = xml.match(regex);
+      return match ? match[1] : '';
+    };
+    
+    const parseDate = (key: string): string => {
+      const regex = new RegExp(`<key>${key}</key>\\s*<date>([^<]+)</date>`);
+      const match = xml.match(regex);
+      return match ? match[1] : '';
+    };
+
+    const name = parseValue('Name');
+    const teamName = parseValue('TeamName');
+    const uuid = parseValue('UUID');
+    const expDateStr = parseDate('ExpirationDate');
+    
+    let isExpired = false;
+    let formattedDate = 'Không rõ';
+    if (expDateStr) {
+      const expDate = new Date(expDateStr);
+      isExpired = expDate.getTime() < Date.now();
+      formattedDate = expDate.toLocaleDateString('vi-VN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    }
+    
+    let teamId = '';
+    const teamIdMatch = xml.match(/<key>TeamIdentifier<\/key>\s*<array>\s*<string>([^<]+)<\/string>/);
+    if (teamIdMatch) teamId = teamIdMatch[1];
+
+    return {
+      profileName: name || 'Không rõ',
+      teamName: teamName || 'Không rõ',
+      teamId: teamId || 'Không rõ',
+      uuid: uuid || '',
+      expirationDate: formattedDate,
+      isExpired
+    };
+  } catch (e) {
+    console.error("Lỗi parse mobileprovision:", e);
+    return null;
+  }
+};
 
 export default function SignScreen() {
+  useThemeUpdate();
   const [localFiles, setLocalFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ipa' | 'installed'>('ipa');
@@ -199,7 +297,21 @@ export default function SignScreen() {
       await FileSystem.writeAsStringAsync(p12Uri, tempZipData.p12Data, { encoding: FileSystem.EncodingType.Base64 });
       await FileSystem.writeAsStringAsync(provUri, tempZipData.provData, { encoding: FileSystem.EncodingType.Base64 });
 
-      const newCert: CertItem = { id, name: tempZipData.zipName, p12Uri, provUri, password: certPassword };
+      const parsed = parseMobileProvisionData(tempZipData.provData);
+
+      const newCert: CertItem = { 
+        id, 
+        name: tempZipData.zipName, 
+        p12Uri, 
+        provUri, 
+        password: certPassword,
+        profileName: parsed?.profileName || tempZipData.zipName,
+        teamName: parsed?.teamName || 'Không rõ',
+        teamId: parsed?.teamId || 'Không rõ',
+        uuid: parsed?.uuid || '',
+        expirationDate: parsed?.expirationDate || 'Không rõ',
+        isExpired: parsed?.isExpired || false
+      };
       const updatedCerts = [newCert, ...savedCerts]; 
       
       setSavedCerts(updatedCerts);
@@ -335,8 +447,9 @@ export default function SignScreen() {
                     <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
                        {isSelected ? <CheckCircle2 color="#32D74B" size={24} style={{marginRight: 15}}/> : <FileKey color="#555" size={24} style={{marginRight: 15}}/>}
                        <View style={{flex: 1}}>
-                         <Text style={[styles.certName, isSelected && {color: '#32D74B'}]}>{cert.name}</Text>
-                         <Text style={styles.certSub}>Sẵn sàng để ký</Text>
+                          <Text style={[styles.certName, isSelected && {color: '#32D74B'}]}>{cert.profileName || cert.name}</Text>
+                          <Text style={styles.certSub} numberOfLines={1}>Doanh nghiệp: {cert.teamName || 'Không rõ'} ({cert.teamId || 'N/A'})</Text>
+                          <Text style={[styles.certSub, cert.isExpired && {color: '#FF453A'}]} numberOfLines={1}>Hết hạn: {cert.expirationDate || 'Không rõ'} {cert.isExpired ? '(Đã hết hạn)' : ''}</Text>
                        </View>
                     </View>
                     <TouchableOpacity style={{padding: 10}} onPress={() => deleteCert(cert.id)}><Trash2 color="#FF453A" size={18}/></TouchableOpacity>

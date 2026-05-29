@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { fetchVIPApps, AppItem } from '../../constants/data';
 import { ListDownloadBtn } from './search';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
 
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -60,6 +60,7 @@ const SmartVIPRow = memo(({ item, index, onAccessDenied }: { item: AppItem; inde
 });
 
 export default function VIPScreen() {
+  useThemeUpdate();
   const router = useRouter();
   const [apps, setApps] = useState<AppItem[]>([]);
   const [loading, setLoading] = useState(true);

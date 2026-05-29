@@ -29,7 +29,7 @@ const IpaSigner = (() => {
 })();
 
 import { CACHED_REGULAR_APPS, CACHED_VIP_APPS, AppItem } from '../../constants/data';
-import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.dev";
@@ -119,6 +119,7 @@ const DISCOVER_CARDS = [
 ] as const;
 
 export default function SearchScreen() {
+  useThemeUpdate();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AppItem[]>([]);
