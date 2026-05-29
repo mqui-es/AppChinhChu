@@ -1,0 +1,138 @@
+name: Build Unsigned IPA Expo
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Npm Install
+        run: npm install
+
+      - name: Expo Prebuild
+        run: npx expo prebuild -p ios --clean
+
+      - name: Step 1 - The Ultimate Python Fix
+        run: |
+          python3 -c "
+          import os, urllib.request, glob, re
+
+          print('1. Tải Minizip bản 1.2.11 (Tuyệt đối không có lỗi skipset.h)...')
+          ios_dir = 'modules/ipa-signer/ios'
+          minizip_dir = os.path.join(ios_dir, 'minizip')
+          os.makedirs(minizip_dir, exist_ok=True)
+          base_url = 'https://raw.githubusercontent.com/madler/zlib/v1.2.11/contrib/minizip/'
+          for f in ['unzip.h', 'unzip.c', 'zip.h', 'zip.c', 'ioapi.h', 'ioapi.c', 'crypt.h']:
+              try: urllib.request.urlretrieve(base_url + f, os.path.join(minizip_dir, f))
+              except Exception as e: print(f'Loi tai {f}: {e}')
+
+          print('2. Dọn rác CLI và đổi tên OpenSSL...')
+          if os.path.exists(os.path.join(ios_dir, 'openssl.h')): os.rename(os.path.join(ios_dir, 'openssl.h'), os.path.join(ios_dir, 'zsign_openssl.h'))
+          if os.path.exists(os.path.join(ios_dir, 'openssl.cpp')): os.rename(os.path.join(ios_dir, 'openssl.cpp'), os.path.join(ios_dir, 'zsign_openssl.cpp'))
+          if os.path.exists(os.path.join(ios_dir, 'zsign.cpp')): os.remove(os.path.join(ios_dir, 'zsign.cpp'))
+
+          print('3. Nắn lại đường dẫn và tiêm kháng thể C++...')
+          for root, dirs, files in os.walk(ios_dir):
+              if 'minizip' in root: continue
+              for file in files:
+                  if not file.endswith(('.h', '.cpp', '.c', '.m', '.mm')): continue
+                  filepath = os.path.join(root, file)
+                  with open(filepath, 'r', encoding='utf-8', errors='ignore') as f: content = f.read()
+                  
+                  new_content = content
+                  
+                  # Fix OpenSSL
+                  for old in ['<openssl.h>', '\"openssl.h\"']:
+                      new_content = new_content.replace(old, '\"zsign_openssl.h\"')
+                  
+                  # Fix đường dẫn Minizip mù mịt
+                  if 'common' in root:
+                      for old in ['<zip.h>', '\"zip.h\"', '<minizip/zip.h>', '\"minizip/zip.h\"']:
+                          new_content = new_content.replace(old, '\"../minizip/zip.h\"')
+                      for old in ['<unzip.h>', '\"unzip.h\"', '<minizip/unzip.h>', '\"minizip/unzip.h\"']:
+                          new_content = new_content.replace(old, '\"../minizip/unzip.h\"')
+                  else:
+                      for old in ['<zip.h>', '\"zip.h\"', '<minizip/zip.h>', '\"minizip/zip.h\"']:
+                          new_content = new_content.replace(old, '\"minizip/zip.h\"')
+                      for old in ['<unzip.h>', '\"unzip.h\"', '<minizip/unzip.h>', '\"minizip/unzip.h\"']:
+                          new_content = new_content.replace(old, '\"minizip/unzip.h\"')
+
+                  # Vô hiệu hóa lệnh system cấm trên iOS
+                  if file == 'util.cpp':
+                      new_content = re.sub(r'int\s+status\s*=\s*system\(.*?\);', 'int status = 0;', new_content)
+                  
+                  # Bơm thư viện nền tảng cho signing
+                  if file == 'signing.h':
+                      if '#include <stdint.h>' not in new_content:
+                          new_content = '#pragma once\n#include <stdint.h>\n#include <string>\n#include <vector>\nusing namespace std;\n' + new_content.replace('#pragma once', '')
+                  
+                  # Giải mã vòng lặp C++
+                  if file in ['archo.h', 'macho.h', 'bundle.h']:
+                      if 'class ZSignAsset;' not in new_content:
+                          new_content = '#pragma once\nclass ZSignAsset;\n' + new_content.replace('#pragma once', '')
+                  
+                  if file == 'signing.cpp':
+                      if '#include \"signing.h\"' not in new_content:
+                          new_content = '#include \"signing.h\"\n' + new_content
+
+                  if new_content != content:
+                      with open(filepath, 'w', encoding='utf-8') as f: f.write(new_content)
+
+          print('4. Bơm quyền Podspec...')
+          for pod in glob.glob('modules/**/*.podspec', recursive=True):
+              with open(pod, 'r') as f: c = f.read()
+              if 'OpenSSL-Universal' not in c:
+                  idx = c.rfind('end')
+                  if idx != -1:
+                      c = c[:idx] + \"\n  s.dependency 'OpenSSL-Universal'\n  s.libraries = 'z'\n\" + c[idx:]
+                      with open(pod, 'w') as f: f.write(c)
+          "
+
+      - name: Step 2 - Pod Install
+        run: |
+          cd ios
+          pod install
+
+      - name: Step 3 - Bịt mắt Swift (Clean Umbrella)
+        run: |
+          python3 -c "
+          import glob
+          print('--- BAT DAU DON DEP UMBRELLA ---')
+          for u_file in glob.glob('ios/Pods/**/IpaSigner-umbrella.h', recursive=True):
+              with open(u_file, 'r') as f: lines = f.readlines()
+              with open(u_file, 'w') as f:
+                  for line in lines:
+                      if line.startswith('#import \"') or line.startswith('#import <IpaSigner/'):
+                          if 'IpaSignerModule' in line or 'IpaSignerView' in line or 'ZSignWrapper' in line or 'Expo' in line:
+                              f.write(line)
+                      else:
+                          f.write(line)
+          print('--- HOAN THANH ---')
+          "
+
+      - name: Step 4 - Xcode Build
+        run: |
+          cd ios
+          WORKSPACE=$(ls | grep .xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -destination "generic/platform=iOS" -derivedDataPath ./XCodeData CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Step 5 - Package IPA
+        run: |
+          mkdir -p Payload
+          mv ios/XCodeData/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r AppIPAVIET.ipa Payload
+
+      - name: Step 6 - Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: File-IPA-Goc
+          path: AppIPAVIET.ipa

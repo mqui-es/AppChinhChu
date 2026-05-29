@@ -1,0 +1,9 @@
+{
+"name": "ipa-signer",
+  "version": "1.0.0",
+  "description": "Local module for IPA signing",
+  "main": "index.ts",
+  "author": "IPAVIET",
+  "homepage": "https://ipaviet.com",
+  "license": "MIT"
+}

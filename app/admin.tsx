@@ -1,0 +1,408 @@
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Switch } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SIZES, SHADOWS } from '../constants/theme';
+
+// 🔴 ĐÃ CẬP NHẬT FULL BỘ ICON TỪ LUCIDE GIỐNG Y HỆT WEB CỦA SẾP
+import { X, ShieldCheck, ChevronLeft, CalendarPlus, UserX, LayoutDashboard, Ticket, Banknote, Users, Crown, Gem, Trash2, Box } from 'lucide-react-native';
+
+import { auth, db } from '../firebaseConfig';
+// Nhập thêm deleteDoc, serverTimestamp để xử lý Giftcode
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, Timestamp, deleteDoc, serverTimestamp } from 'firebase/firestore';
+
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXnH5KjwQVafxGW_W2KlpDY9KHBx_0TAmaNZBqUaPz9WR8T1PDKwB9un37fNA_YO7pmg/exec";
+
+export default function AdminScreen() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pin, setPin] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  
+  // 🔴 THÊM TAB DASHBOARD VÀ GIFTCODES
+  const [activeTab, setActiveTab] = useState('DASHBOARD'); 
+
+  // Dữ liệu Web & Firebase
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [giftcodesList, setGiftcodesList] = useState<any[]>([]);
+  const [dataKho, setDataKho] = useState<any[]>([]);
+  const [sysConfig, setSysConfig] = useState({ popupMsg: '', showPopup: false, enable14Days: true });
+  
+  // Thống kê
+  const [stats, setStats] = useState({ revenue: 0, totalUsers: 0, totalVips: 0, totalCoins: 0 });
+  const [invStats, setInvStats] = useState<any>({ 'Spotify': {total: 0, available: 0, sold: 0}, 'Netflix': {total: 0, available: 0, sold: 0}, 'CapCut': {total: 0, available: 0, sold: 0} });
+
+  // State nạp kho
+  const [newAccType, setNewAccType] = useState('Spotify');
+  const [newAccInfo, setNewAccInfo] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+
+  // State Giftcode
+  const [gcName, setGcName] = useState('');
+  const [gcType, setGcType] = useState('coins'); // coins, vip, discount
+  const [gcValue, setGcValue] = useState('');
+  const [gcLimit, setGcLimit] = useState('100');
+  const [isCreatingGc, setIsCreatingGc] = useState(false);
+
+  const getVipMillis = (vipExpire: any) => {
+    if (!vipExpire) return 0;
+    if (typeof vipExpire.toMillis === 'function') return vipExpire.toMillis();
+    if (vipExpire.seconds) return vipExpire.seconds * 1000;
+    return Number(vipExpire) || 0;
+  };
+
+  const handleLoginAdmin = async () => {
+    if (!pin) return Alert.alert("Lỗi", "Nhập mã PIN");
+    setIsVerifying(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=get_admin_data&pin=${encodeURIComponent(pin)}`);
+      const json = await res.json();
+      if (json.success) { 
+        setDataKho(json.dataKho || []); 
+        
+        // 🔴 BÓC TÁCH DOANH THU & KHO Y HỆT WEB CỦA SẾP
+        let totalRev = 0;
+        let tempInv = { 'Spotify': {total: 0, available: 0, sold: 0}, 'Netflix': {total: 0, available: 0, sold: 0}, 'CapCut': {total: 0, available: 0, sold: 0} };
+        
+        if (json.dataThuNgan) {
+            for(let i = 1; i < json.dataThuNgan.length; i++) {
+                let r = json.dataThuNgan[i];
+                if(r[4] === 'CLAIMED' || r[4] === 'PAID') totalRev += (parseInt(r[2]) || 0);
+            }
+        }
+        if (json.dataKho) {
+            for(let i = 1; i < json.dataKho.length; i++) {
+                let r = json.dataKho[i]; let type = r[0]; let status = r[2];
+                if(tempInv[type as keyof typeof tempInv]) {
+                    tempInv[type as keyof typeof tempInv].total++;
+                    if(status === 'SẴN SÀNG') tempInv[type as keyof typeof tempInv].available++; 
+                    else tempInv[type as keyof typeof tempInv].sold++;
+                }
+            }
+        }
+        
+        setStats(prev => ({ ...prev, revenue: totalRev }));
+        setInvStats(tempInv);
+        setIsAuthenticated(true); 
+        loadFirebaseData(); 
+      } else { Alert.alert("Lỗi", "Sai mã PIN!"); }
+    } catch (e) { Alert.alert("Lỗi", "Mất kết nối"); }
+    setIsVerifying(false);
+  };
+
+  const loadFirebaseData = async () => {
+    const snapConfig = await getDoc(doc(db, 'settings', 'config'));
+    if (snapConfig.exists()) setSysConfig(snapConfig.data() as any);
+    
+    // Tải Khách hàng & Tính tổng
+    const usersSnap = await getDocs(collection(db, 'users'));
+    let arr: any[] = [];
+    let tUsers = 0, tVips = 0, tCoins = 0;
+    
+    usersSnap.forEach(d => {
+       const uData = d.data();
+       arr.push({ id: d.id, ...uData });
+       tUsers++;
+       tCoins += (uData.coins || 0);
+       if (getVipMillis(uData.vipExpire) > Date.now()) tVips++;
+    });
+    
+    arr.sort((a, b) => getVipMillis(b.vipExpire) - getVipMillis(a.vipExpire));
+    setUsersList(arr);
+    setStats(prev => ({ ...prev, totalUsers: tUsers, totalVips: tVips, totalCoins: tCoins }));
+
+    // Tải Giftcodes
+    const gcSnap = await getDocs(collection(db, 'giftcodes'));
+    let gcArr: any[] = [];
+    gcSnap.forEach(d => gcArr.push({ id: d.id, ...d.data() }));
+    setGiftcodesList(gcArr);
+  };
+
+  const saveSettings = async () => {
+    try { await setDoc(doc(db, 'settings', 'config'), sysConfig, { merge: true }); Alert.alert("Thành công", "Đã lưu cài đặt!"); } 
+    catch (error) { Alert.alert("Lỗi", "Không thể lưu."); }
+  };
+
+  const addVipDays = async (uid: string, currentExpire: any, daysToAdd: number) => {
+    if (auth.currentUser?.email !== 'mquitran@gmail.com') return Alert.alert("Cảnh báo", "Chỉ dành cho Admin");
+    Alert.alert('Xác nhận', daysToAdd > 0 ? `Cộng ${daysToAdd} ngày VIP?` : `Xóa VIP?`, [
+      { text: 'Hủy', style: 'cancel' },
+      { text: 'Đồng ý', onPress: async () => {
+          try {
+            const now = Date.now();
+            const currentMillis = getVipMillis(currentExpire);
+            const baseTime = currentMillis > now ? currentMillis : now;
+            let updateData: any = {};
+            if (daysToAdd > 0) updateData.vipExpire = Timestamp.fromMillis(baseTime + (daysToAdd * 24 * 60 * 60 * 1000)); 
+            else updateData.vipExpire = null; 
+            await updateDoc(doc(db, 'users', uid), updateData);
+            Alert.alert("Thành công", "Đã chốt VIP!"); loadFirebaseData();
+          } catch (error) { Alert.alert("Lỗi", "Không thể cập nhật."); }
+      }}
+    ]);
+  };
+
+  const handleAddAccount = async () => {
+    if (!newAccType || !newAccInfo) return Alert.alert("Lỗi", "Nhập đủ thông tin TK");
+    setIsAdding(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=add_account&pin=${encodeURIComponent(pin)}&type=${encodeURIComponent(newAccType)}&account=${encodeURIComponent(newAccInfo)}`);
+      const json = await res.json();
+      if (json.success) { Alert.alert("Xong", "Đã nạp vào Kho!"); setNewAccInfo(''); handleLoginAdmin(); } 
+      else { Alert.alert("Lỗi", json.error); }
+    } catch (error) { Alert.alert("Lỗi", "Kết nối thất bại."); }
+    setIsAdding(false);
+  };
+
+  // 🔴 HÀM XỬ LÝ GIFTCODE (TẠO & XÓA)
+  const createNewGiftcode = async () => {
+    const code = gcName.trim().toUpperCase();
+    const val = parseInt(gcValue);
+    const limit = parseInt(gcLimit) || 0;
+    
+    if (!code || isNaN(val)) return Alert.alert("Lỗi", "Vui lòng nhập Tên Mã và Giá trị");
+    setIsCreatingGc(true);
+    try {
+      const docRef = doc(db, 'giftcodes', code);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) { Alert.alert("Lỗi", "Tên mã này đã tồn tại!"); } 
+      else {
+        await setDoc(docRef, { type: gcType, value: val, maxUses: limit, usedCount: 0, usedBy: [], createdAt: serverTimestamp() });
+        Alert.alert("Thành công", "Đã tạo mã Giftcode!");
+        setGcName(''); setGcValue(''); loadFirebaseData();
+      }
+    } catch (error: any) { Alert.alert("Lỗi", error.message); }
+    setIsCreatingGc(false);
+  };
+
+  const handleDeleteGiftcode = (code: string) => {
+    Alert.alert('Cảnh báo', `Xóa mã [${code}] vĩnh viễn?`, [
+       { text: 'Hủy', style: 'cancel' },
+       { text: 'Xóa', style: 'destructive', onPress: async () => {
+           await deleteDoc(doc(db, 'giftcodes', code)); loadFirebaseData();
+       }}
+    ])
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <LinearGradient colors={COLORS.bgGradient} style={styles.loginContainer}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'center' }}>
+           <StatusBar style="light" />
+           <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}><X color="#FFF" size={32} /></TouchableOpacity>
+           <View style={[styles.loginBox, SHADOWS.glowDark]}>
+              <View style={styles.logoCircle}><ShieldCheck color="#FF453A" size={40} /></View>
+              <Text style={styles.loginTitle}>Trung Tâm Điều Hành</Text>
+              <View style={styles.inputGroup}><TextInput style={styles.input} placeholder="Mã PIN..." placeholderTextColor="#555" secureTextEntry value={pin} onChangeText={setPin} /></View>
+              <TouchableOpacity style={styles.submitBtn} onPress={handleLoginAdmin} disabled={isVerifying}>{isVerifying ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>XÁC NHẬN</Text>}</TouchableOpacity>
+           </View>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    );
+  }
+
+  return (
+    <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
+      <StatusBar style="light" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}><ChevronLeft color="#FF453A" size={28} /></TouchableOpacity>
+        <Text style={styles.headerTitle}>ADMIN WORKSPACE</Text>
+        <TouchableOpacity onPress={loadFirebaseData}><Text style={{color: COLORS.primary, fontWeight: 'bold'}}>Tải lại</Text></TouchableOpacity>
+      </View>
+      
+      {/* 🔴 SCROLLVIEW CHO MENU ĐỂ TRÁNH BỊ CHẬT NẾU ĐIỆN THOẠI NHỎ */}
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
+          <TouchableOpacity onPress={() => setActiveTab('DASHBOARD')} style={[styles.tabBtn, activeTab === 'DASHBOARD' && styles.tabBtnActive]}><LayoutDashboard color={activeTab === 'DASHBOARD' ? '#FFF' : '#8E8E93'} size={18} style={{marginRight: 6}}/><Text style={[styles.tabText, activeTab === 'DASHBOARD' && {color: '#FFF'}]}>TỔNG QUAN</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('MEMBERS')} style={[styles.tabBtn, activeTab === 'MEMBERS' && styles.tabBtnActive]}><Users color={activeTab === 'MEMBERS' ? '#FFF' : '#8E8E93'} size={18} style={{marginRight: 6}}/><Text style={[styles.tabText, activeTab === 'MEMBERS' && {color: '#FFF'}]}>KHÁCH</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('KHOTK')} style={[styles.tabBtn, activeTab === 'KHOTK' && styles.tabBtnActive]}><Box color={activeTab === 'KHOTK' ? '#FFF' : '#8E8E93'} size={18} style={{marginRight: 6}}/><Text style={[styles.tabText, activeTab === 'KHOTK' && {color: '#FFF'}]}>KHO APPLE</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('GIFTCODES')} style={[styles.tabBtn, activeTab === 'GIFTCODES' && styles.tabBtnActive]}><Ticket color={activeTab === 'GIFTCODES' ? '#FFF' : '#8E8E93'} size={18} style={{marginRight: 6}}/><Text style={[styles.tabText, activeTab === 'GIFTCODES' && {color: '#FFF'}]}>GIFTCODE</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('SETTINGS')} style={[styles.tabBtn, activeTab === 'SETTINGS' && styles.tabBtnActive]}><Text style={[styles.tabText, activeTab === 'SETTINGS' && {color: '#FFF'}]}>CÀI ĐẶT</Text></TouchableOpacity>
+        </ScrollView>
+      </View>
+      
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        
+        {/* 🔴 TAB 1: DASHBOARD (TỔNG QUAN) */}
+        {activeTab === 'DASHBOARD' && (
+          <View>
+             <Text style={styles.title}>THỐNG KÊ HỆ THỐNG</Text>
+             <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20}}>
+                <View style={styles.statCard}><View style={[styles.statIconBox, {backgroundColor: 'rgba(50,215,75,0.1)'}]}><Banknote color="#32D74B" size={24}/></View><Text style={styles.statLabel}>DOANH THU</Text><Text style={[styles.statValue, {color: '#32D74B'}]}>{stats.revenue.toLocaleString('vi-VN')}đ</Text></View>
+                <View style={styles.statCard}><View style={[styles.statIconBox, {backgroundColor: 'rgba(10,132,255,0.1)'}]}><Users color="#0A84FF" size={24}/></View><Text style={styles.statLabel}>NGƯỜI DÙNG</Text><Text style={styles.statValue}>{stats.totalUsers.toLocaleString()}</Text></View>
+                <View style={styles.statCard}><View style={[styles.statIconBox, {backgroundColor: 'rgba(255,215,0,0.1)'}]}><Crown color="#FFD700" size={24}/></View><Text style={styles.statLabel}>KHÁCH VIP</Text><Text style={styles.statValue}>{stats.totalVips.toLocaleString()}</Text></View>
+                <View style={styles.statCard}><View style={[styles.statIconBox, {backgroundColor: 'rgba(175,82,222,0.1)'}]}><Gem color="#AF52DE" size={24}/></View><Text style={styles.statLabel}>TỔNG XU</Text><Text style={[styles.statValue, {color: '#AF52DE'}]}>{stats.totalCoins.toLocaleString()}</Text></View>
+             </View>
+
+             <Text style={styles.title}>BÁO CÁO KHO TÀI KHOẢN</Text>
+             {['Spotify', 'Netflix', 'CapCut'].map(type => {
+                const data = invStats[type];
+                const percent = data.total > 0 ? Math.round((data.sold / data.total)*100) : 0;
+                return (
+                  <View key={type} style={styles.invCard}>
+                    <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10}}>
+                      <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 16}}>{type}</Text>
+                      <Text style={{color: '#32D74B', fontWeight: '900', fontSize: 18}}>{data.available} <Text style={{fontSize: 12, color: '#888'}}>Tồn</Text></Text>
+                    </View>
+                    <View style={{height: 6, backgroundColor: '#333', borderRadius: 3, overflow: 'hidden'}}><View style={{height: '100%', width: `${percent}%`, backgroundColor: '#0A84FF'}} /></View>
+                    <Text style={{color: '#888', fontSize: 12, marginTop: 5, textAlign: 'right'}}>Đã bán: {data.sold} / {data.total}</Text>
+                  </View>
+                )
+             })}
+          </View>
+        )}
+
+        {/* TAB 2: KHÁCH HÀNG */}
+        {activeTab === 'MEMBERS' && (
+          <View>
+            <Text style={styles.title}>CHỈNH SỬA VIP KHÁCH HÀNG ({usersList.length})</Text>
+            {usersList.map((u, i) => {
+              const expireMillis = getVipMillis(u.vipExpire);
+              const isVipActive = expireMillis > Date.now();
+              return (
+                <View key={i} style={styles.userCard}>
+                  <View style={{marginBottom: 12}}>
+                    <Text style={styles.userName}>{u.fullname || u.email}</Text>
+                    <Text style={styles.userEmail}>{u.email}</Text>
+                    <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8}}>
+                      {isVipActive ? ( <View style={styles.vipTag}><Text style={styles.vipTagText}>VIP: {new Date(expireMillis).toLocaleDateString('vi-VN')}</Text></View> ) : ( <View style={[styles.vipTag, {backgroundColor: '#333', borderColor: '#555'}]}><Text style={[styles.vipTagText, {color: '#888'}]}>Chưa VIP</Text></View> )}
+                      <Text style={{color: '#AF52DE', fontWeight: 'bold'}}><Gem size={12} color="#AF52DE" style={{marginBottom: -2}}/> {(u.coins || 0).toLocaleString()} Xu</Text>
+                    </View>
+                  </View>
+                  <View style={styles.actionRow}>
+                      <TouchableOpacity style={styles.actionBtn} onPress={() => addVipDays(u.id, u.vipExpire, 1)}><CalendarPlus color="#32D74B" size={16} style={{marginRight: 4}}/><Text style={styles.actionText}>1 Ngày</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.actionBtn} onPress={() => addVipDays(u.id, u.vipExpire, 7)}><CalendarPlus color="#32D74B" size={16} style={{marginRight: 4}}/><Text style={styles.actionText}>7 Ngày</Text></TouchableOpacity>
+                      <TouchableOpacity style={styles.actionBtn} onPress={() => addVipDays(u.id, u.vipExpire, 30)}><CalendarPlus color="#FFD700" size={16} style={{marginRight: 4}}/><Text style={[styles.actionText, {color: '#FFD700'}]}>1 Tháng</Text></TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={styles.cancelVipBtn} onPress={() => addVipDays(u.id, u.vipExpire, 0)}><UserX color="#FFF" size={16} style={{marginRight: 6}}/><Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 13}}>Tước quyền VIP</Text></TouchableOpacity>
+                </View>
+              )
+            })}
+          </View>
+        )}
+
+        {/* TAB 3: KHO APPLE ID */}
+        {activeTab === 'KHOTK' && (
+          <View>
+            <Text style={styles.title}>NẠP KHO APPLE ID</Text>
+            <View style={styles.userCard}>
+              <View style={{flexDirection: 'row', gap: 10, marginBottom: 15}}>
+                {['Spotify', 'Netflix', 'CapCut'].map(t => (
+                  <TouchableOpacity key={t} style={[styles.typeBtn, newAccType === t && styles.typeBtnActive]} onPress={() => setNewAccType(t)}><Text style={[styles.typeBtnText, newAccType === t && {color: '#FFF'}]}>{t}</Text></TouchableOpacity>
+                ))}
+              </View>
+              <TextInput style={[styles.addInput, {marginBottom: 15}]} placeholder="Email | Mật khẩu..." placeholderTextColor="#8E8E93" value={newAccInfo} onChangeText={setNewAccInfo} multiline/>
+              <TouchableOpacity style={styles.submitBtn} onPress={handleAddAccount} disabled={isAdding}>{isAdding ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>BƠM VÀO KHO HỆ THỐNG</Text>}</TouchableOpacity>
+            </View>
+            <Text style={styles.title}>KHO GẦN ĐÂY</Text>
+            <View style={{backgroundColor: '#111', borderRadius: 16, borderWidth: 1, borderColor: '#222', overflow: 'hidden'}}>
+               {dataKho.slice(-5).reverse().map((row, idx) => { if (idx === dataKho.length - 1) return null; return ( <View key={idx} style={{flexDirection: 'row', justifyContent: 'space-between', padding: 15, borderBottomWidth: 1, borderBottomColor: '#222'}}><View><Text style={{color: '#FFF', fontWeight: 'bold'}}>{row[0]}</Text><Text style={{color: '#8E8E93', fontSize: 12, marginTop: 4}}>{row[1]}</Text></View><Text style={{color: row[2] === 'SẴN SÀNG' ? '#32D74B' : '#FF453A', fontSize: 12, fontWeight: 'bold'}}>{row[2]}</Text></View> ) })}
+            </View>
+          </View>
+        )}
+
+        {/* 🔴 TAB 4: MARKETING (GIFTCODE) */}
+        {activeTab === 'GIFTCODES' && (
+          <View>
+            <Text style={styles.title}>TẠO MÃ KHUYẾN MÃI (GIFTCODE)</Text>
+            <View style={styles.userCard}>
+               <TextInput style={styles.addInput} placeholder="Tên mã (VD: TANG50XU)" placeholderTextColor="#8E8E93" value={gcName} onChangeText={setGcName} autoCapitalize="characters"/>
+               
+               <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
+                 <TouchableOpacity style={[styles.typeBtn, gcType === 'coins' && {borderColor: '#AF52DE', backgroundColor: 'rgba(175,82,222,0.1)'}]} onPress={() => setGcType('coins')}><Gem color={gcType === 'coins' ? '#AF52DE' : '#888'} size={16}/><Text style={[styles.typeBtnText, gcType === 'coins' && {color: '#AF52DE'}]}>Tặng Xu</Text></TouchableOpacity>
+                 <TouchableOpacity style={[styles.typeBtn, gcType === 'vip' && {borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)'}]} onPress={() => setGcType('vip')}><Crown color={gcType === 'vip' ? '#FFD700' : '#888'} size={16}/><Text style={[styles.typeBtnText, gcType === 'vip' && {color: '#FFD700'}]}>Tặng VIP</Text></TouchableOpacity>
+               </View>
+
+               <TextInput style={styles.addInput} placeholder={gcType === 'coins' ? "Số xu tặng (VD: 50)" : "Số ngày VIP tặng (VD: 3)"} placeholderTextColor="#8E8E93" value={gcValue} onChangeText={setGcValue} keyboardType="numeric"/>
+               <TextInput style={styles.addInput} placeholder="Giới hạn lượt dùng (0 = Vô hạn)" placeholderTextColor="#8E8E93" value={gcLimit} onChangeText={setGcLimit} keyboardType="numeric"/>
+               
+               <TouchableOpacity style={[styles.submitBtn, {backgroundColor: '#0A84FF'}]} onPress={createNewGiftcode} disabled={isCreatingGc}>{isCreatingGc ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>PHÁT HÀNH MÃ</Text>}</TouchableOpacity>
+            </View>
+
+            <Text style={styles.title}>MÃ ĐANG HOẠT ĐỘNG</Text>
+            {giftcodesList.length === 0 && <Text style={{color: '#888', textAlign: 'center', marginTop: 10}}>Chưa có mã nào.</Text>}
+            {giftcodesList.map((gc, idx) => (
+              <View key={idx} style={styles.gcCard}>
+                 <View style={{flex: 1}}>
+                    <Text style={{color: '#FFF', fontSize: 18, fontWeight: '900', letterSpacing: 2, marginBottom: 5}}>{gc.id}</Text>
+                    <Text style={{color: gc.type === 'coins' ? '#AF52DE' : '#FFD700', fontWeight: 'bold', fontSize: 13}}>
+                      {gc.type === 'coins' ? `Tặng ${gc.value} Xu` : `Tặng ${gc.value} Ngày VIP`}
+                    </Text>
+                    <Text style={{color: '#888', fontSize: 12, marginTop: 5}}>Đã dùng: {gc.usedCount} / {gc.maxUses === 0 ? 'Vô hạn' : gc.maxUses}</Text>
+                 </View>
+                 <TouchableOpacity style={{padding: 15, backgroundColor: 'rgba(255,69,58,0.1)', borderRadius: 12}} onPress={() => handleDeleteGiftcode(gc.id)}><Trash2 color="#FF453A" size={20}/></TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* TAB 5: HỆ THỐNG */}
+        {activeTab === 'SETTINGS' && (
+          <View>
+            <Text style={styles.title}>CẤU HÌNH HỆ THỐNG APP</Text>
+            <View style={styles.userCard}>
+              <View style={styles.settingRow}><Text style={styles.settingText}>Bật gói 14 Ngày</Text><Switch value={sysConfig.enable14Days} onValueChange={(val) => setSysConfig({...sysConfig, enable14Days: val})} /></View>
+              <View style={styles.settingRow}><Text style={styles.settingText}>Bật Popup thông báo</Text><Switch value={sysConfig.showPopup} onValueChange={(val) => setSysConfig({...sysConfig, showPopup: val})} /></View>
+              <Text style={{color: '#8E8E93', marginBottom: 10}}>Nội dung Popup:</Text>
+              <TextInput style={styles.textArea} placeholder="Nhập thông báo..." placeholderTextColor="#555" multiline value={sysConfig.popupMsg} onChangeText={(txt) => setSysConfig({...sysConfig, popupMsg: txt})} />
+              <TouchableOpacity style={[styles.submitBtn, {marginTop: 20}]} onPress={saveSettings}><Text style={styles.submitBtnText}>LƯU CÀI ĐẶT</Text></TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: COLORS.border },
+  headerTitle: { color: COLORS.danger, fontSize: 18, fontWeight: '800', letterSpacing: 1 },
+  backBtn: { padding: 5, marginLeft: -5 },
+  tabBar: { paddingHorizontal: 20, paddingVertical: 15, gap: 10 },
+  tabBtn: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 0.8, borderColor: COLORS.border },
+  tabBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.2)' },
+  tabText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  content: { padding: 20, paddingBottom: 80 },
+
+  loginContainer: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', padding: 20 },
+  closeBtn: { position: 'absolute', top: 60, right: 20, zIndex: 10 },
+  loginBox: { backgroundColor: 'rgba(20,20,24,0.7)', padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 0.8, borderColor: COLORS.border },
+  logoCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255, 69, 58, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  loginTitle: { color: COLORS.text, fontSize: 24, fontWeight: '800', marginBottom: 25 },
+  inputGroup: { width: '100%', height: 55, backgroundColor: '#000', borderRadius: 16, marginBottom: 20, paddingHorizontal: 15, borderWidth: 0.8, borderColor: COLORS.border, justifyContent: 'center' },
+  input: { color: COLORS.text, fontSize: 18, textAlign: 'center', fontWeight: 'bold' },
+  submitBtn: { backgroundColor: COLORS.danger, width: '100%', height: 55, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+
+  title: { color: COLORS.textMuted, fontSize: 13, fontWeight: '800', marginBottom: 15, letterSpacing: 1 },
+  userCard: { backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, marginBottom: 15, borderWidth: 0.8, borderColor: COLORS.border },
+  userName: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
+  userEmail: { color: COLORS.textMuted, fontSize: 14, marginTop: 4 },
+  vipTag: { alignSelf: 'flex-start', backgroundColor: 'rgba(48, 209, 88, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 0.8, borderColor: 'rgba(48, 209, 88, 0.5)' },
+  vipTagText: { color: COLORS.success, fontSize: 12, fontWeight: 'bold' },
+  
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 15 },
+  actionBtn: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 0.8, borderColor: COLORS.border },
+  actionText: { color: COLORS.text, fontSize: 12, fontWeight: 'bold' },
+  cancelVipBtn: { flexDirection: 'row', marginTop: 8, backgroundColor: COLORS.danger, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 15, borderBottomWidth: 0.8, borderBottomColor: COLORS.border },
+  settingText: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  textArea: { backgroundColor: 'rgba(0,0,0,0.4)', color: COLORS.text, padding: 15, borderRadius: 12, height: 120, textAlignVertical: 'top', borderWidth: 0.8, borderColor: COLORS.border, fontSize: 15 },
+  addInput: { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12, height: 50, color: COLORS.text, paddingHorizontal: 15, marginBottom: 10, borderWidth: 0.8, borderColor: COLORS.border },
+
+  // Dashbard & Inventory
+  statCard: { width: '48%', backgroundColor: 'rgba(255,255,255,0.03)', padding: 15, borderRadius: 16, borderWidth: 0.8, borderColor: COLORS.border },
+  statIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  statLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 4 },
+  statValue: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
+  invCard: { backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: COLORS.border, marginBottom: 10 },
+
+  typeBtn: { flex: 1, flexDirection: 'row', height: 45, borderRadius: 10, borderWidth: 0.8, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  typeBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: '#FFF' },
+  typeBtnText: { color: COLORS.textMuted, fontSize: 13, fontWeight: 'bold' },
+
+  gcCard: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: COLORS.border, marginBottom: 10, alignItems: 'center' }
+});

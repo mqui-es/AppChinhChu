@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["IpaSignerModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.ipasigner.IpaSignerModule"]
+  }
+}
