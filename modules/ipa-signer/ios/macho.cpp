@@ -1,6 +1,7 @@
 #include "common.h"
 #include "json.h"
 #include "mach-o.h"
+#include "openssl.h"
 #include "signing.h"
 #include "macho.h"
 
@@ -82,7 +83,7 @@ bool ZMachO::OpenFile(const char* szPath)
 				return false;
 			}
 		} else {
-			ZLog::ErrorV(">>> Invalid mach-o file (2)!\n");
+			ZLog::ErrorV(">>> Invalid mach-o file (magic: 0x%08x)!\n", magic);
 			return false;
 		}
 	}
@@ -109,6 +110,15 @@ void ZMachO::PrintInfo()
 		ZArchO* archo = m_arrArchOes[i];
 		archo->PrintInfo();
 	}
+}
+
+bool ZMachO::CheckSignature() const
+{
+	return std::all_of(m_arrArchOes.cbegin(), m_arrArchOes.cend(), 
+		[](ZArchO const * archo) {
+			return archo->IsSigned();
+		}
+	);
 }
 
 bool ZMachO::Sign(ZSignAsset* pSignAsset, bool bForce, string strBundleId, string strInfoSHA1, string strInfoSHA256, const string& strCodeResourcesData)
@@ -222,7 +232,7 @@ bool ZMachO::ReallocCodeSignSpace()
 
 		for (size_t i = 0; i < arrArches.size(); i++) {
 			size_t sSize = 0;
-			string strNewArchOFile = m_strFile + ".archo." + jvalue((int)i).as_string();
+			string strNewArchOFile = m_strFile + ".archo." + std::to_string(i);
 			uint8_t* pData = (uint8_t*)ZFile::MapFile(strNewArchOFile.c_str(), 0, 0, &sSize, true);
 			if (NULL == pData) {
 				ZFile::RemoveFile(strNewFatMachOFile.c_str());
@@ -260,4 +270,11 @@ bool ZMachO::InjectDylib(bool bWeakInject, const char* szDylibFile)
 	}
 	ZLog::Warn(">>> Success!\n");
 	return true;
+}
+
+void ZMachO::RemoveDylibs(const set<string>& setDylibs)
+{
+	for (size_t i = 0; i < m_arrArchOes.size(); i++) {
+		m_arrArchOes[i]->RemoveDylibs(setDylibs);
+	}
 }

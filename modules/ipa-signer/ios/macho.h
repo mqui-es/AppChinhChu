@@ -12,6 +12,7 @@ public:
 	bool InitV(const char* szPath, ...);
 	bool Free();
 	void PrintInfo();
+	bool CheckSignature() const;
 	bool Sign(ZSignAsset* pSignAsset,
 				bool bForce, 
 				string strBundleId, 
@@ -19,6 +20,7 @@ public:
 				string strInfoSHA256, 
 				const string& strCodeResourcesData);
 	bool InjectDylib(bool bWeakInject, const char* szDylibFile);
+	void RemoveDylibs(const set<string>& setDylibs);
 
 private:
 	bool OpenFile(const char* szPath);

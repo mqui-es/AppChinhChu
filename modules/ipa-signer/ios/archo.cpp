@@ -231,6 +231,17 @@ bool ZArchO::IsExecute()
 	return false;
 }
 
+bool ZArchO::IsSigned() const 
+{
+	if (NULL == m_pSignBase || m_uSignLength <= 0) {
+		ZLog::PrintV("File is not signed.\n");
+		return false;
+	}
+	
+	ZLog::PrintV("File is signed.\n");
+	return true;
+}
+
 void ZArchO::PrintInfo()
 {
 	if (NULL == m_pHeader) {
@@ -574,7 +585,7 @@ uint32_t ZArchO::ReallocCodeSignSpace(const string& strNewFile)
 {
 	ZFile::RemoveFile(strNewFile.c_str());
 
-	uint32_t uNewLength = m_uCodeLength + ZUtil::ByteAlign(((m_uCodeLength / 4096) + 1) * (20 + 32), 4096) + 16384; //16K May Be Enough
+	uint32_t uNewLength = m_uCodeLength + ZUtil::ByteAlign(((m_uCodeLength / 4096) + 1) * (20 + 32), 4096) + 32768; //32K Should Be Enough
 	if (NULL == m_pLinkEditSegment || uNewLength <= m_uLength) {
 		return 0;
 	}
@@ -686,7 +697,7 @@ bool ZArchO::InjectDylib(bool bWeakInject, const char* szDylibFile)
 	return true;
 }
 
-void ZArchO::RemoveDylibs(set<string> setDylibs)
+void ZArchO::RemoveDylibs(const set<string>& setDylibs)
 {
 	uint8_t* pLoadCommand = m_pBase + m_uHeaderSize;
 	uint32_t old_load_command_size = m_pHeader->sizeofcmds;
@@ -722,8 +733,8 @@ void ZArchO::RemoveDylibs(set<string> setDylibs)
 	}
 	pLoadCommand -= m_pHeader->sizeofcmds;
 
-	m_pHeader->ncmds -= clear_num;
-	m_pHeader->sizeofcmds -= clear_data_size;
+	m_pHeader->ncmds = BO(BO(m_pHeader->ncmds) - clear_num);
+	m_pHeader->sizeofcmds = BO(BO(m_pHeader->sizeofcmds) - clear_data_size);
 	new_load_command_data -= new_load_command_size;
 	memset(pLoadCommand, 0, old_load_command_size);
 	memcpy(pLoadCommand, new_load_command_data, new_load_command_size);
