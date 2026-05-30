@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, Platform, Dimensions, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, ActivityIndicator, Alert, Platform, Dimensions, Modal, Animated, PanResponder, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Star, Zap, X } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
@@ -41,14 +41,70 @@ export default function AppDetailScreen() {
   const [isFetchingApple, setIsFetchingApple] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-  // States dịch động
+  // States dịch chủ động theo yêu cầu của Sếp
+  const [showTranslated, setShowTranslated] = useState(false);
   const [translatedDesc, setTranslatedDesc] = useState('');
-  const [translatedMod, setTranslatedMod] = useState('');
-  const [translating, setTranslating] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const currentLang = TXT.langName === 'English' ? 'en' : 'vi';
 
-  // State phóng to ảnh
-  const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
+  // State phóng to ảnh chụp màn hình dạng vuốt
+  const [activeScreenshotIndex, setActiveScreenshotIndex] = useState<number | null>(null);
+  const dragY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
+      },
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 10;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        dragY.setValue(gestureState.dy);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dy > 120) {
+          Animated.timing(dragY, {
+            toValue: height,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            setActiveScreenshotIndex(null);
+            dragY.setValue(0);
+          });
+        } else if (gestureState.dy < -120) {
+          Animated.timing(dragY, {
+            toValue: -height,
+            duration: 250,
+            useNativeDriver: true,
+          }).start(() => {
+            setActiveScreenshotIndex(null);
+            dragY.setValue(0);
+          });
+        } else {
+          Animated.spring(dragY, {
+            toValue: 0,
+            tension: 80,
+            friction: 10,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  const backdropOpacity = dragY.interpolate({
+    inputRange: [-height, 0, height],
+    outputRange: [0.3, 0.95, 0.3],
+    extrapolate: 'clamp',
+  });
+
+  const imageScale = dragY.interpolate({
+    inputRange: [-height, 0, height],
+    outputRange: [0.85, 1, 0.85],
+    extrapolate: 'clamp',
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -71,27 +127,38 @@ export default function AppDetailScreen() {
     loadData();
   }, [id]);
 
-  // Thực hiện dịch động khi app được tải hoặc khi đổi ngôn ngữ
+  // Khởi tạo lại trạng thái dịch khi chuyển ứng dụng
   useEffect(() => {
-    if (!app) return;
-    const performTranslation = async () => {
-      setTranslating(true);
-      if (app.description) {
-        const descTrans = await translateText(app.description, currentLang);
-        setTranslatedDesc(descTrans);
+    setTranslatedDesc('');
+    setShowTranslated(false);
+  }, [app]);
+
+  const handleTranslateToggle = async () => {
+    if (showTranslated) {
+      setShowTranslated(false);
+      return;
+    }
+    if (translatedDesc) {
+      setShowTranslated(true);
+      return;
+    }
+    if (!app || !app.description) return;
+
+    setIsTranslating(true);
+    try {
+      const resTrans = await translateText(app.description, currentLang);
+      if (resTrans) {
+        setTranslatedDesc(resTrans);
+        setShowTranslated(true);
       } else {
-        setTranslatedDesc('');
+        Alert.alert(TXT.errorLabel || "Lỗi", "Không thể dịch mô tả lúc này. Sếp vui lòng thử lại sau!");
       }
-      if (app.modFeatures) {
-        const modTrans = await translateText(app.modFeatures, currentLang);
-        setTranslatedMod(modTrans);
-      } else {
-        setTranslatedMod('');
-      }
-      setTranslating(false);
-    };
-    performTranslation();
-  }, [app, currentLang]);
+    } catch (e) {
+      Alert.alert(TXT.errorLabel || "Lỗi", "Không thể dịch mô tả lúc này. Sếp vui lòng thử lại sau!");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const fetchAppleData = async (currentApp: AppItem) => {
     setIsFetchingApple(true);
@@ -105,12 +172,15 @@ export default function AppDetailScreen() {
       
       if (data.results && data.results.length > 0) {
         const appleData = data.results[0];
-        setApp(prev => prev ? {
+        setApp(prev => {
+          if (!prev || prev.id !== currentApp.id) return prev;
+          return {
             ...prev,
             iconUrl: appleData.artworkUrl512 || prev.iconUrl,
             screenshots: appleData.screenshotUrls || prev.screenshots,
             description: appleData.description || prev.description
-        } : null);
+          };
+        });
       }
     } catch (error) {}
     setIsFetchingApple(false);
@@ -185,7 +255,12 @@ export default function AppDetailScreen() {
         router.push('/sign');
         return;
       }
-      const activeCert = certs[0];
+      const activeId = await AsyncStorage.getItem('@active_cert_id');
+      let activeCert = certs[0];
+      if (activeId) {
+        const found = certs.find((c: any) => c.id === activeId);
+        if (found) activeCert = found;
+      }
 
       setDownloadState('Đang tải...');
       const safeName = "app_" + Date.now();
@@ -203,6 +278,12 @@ export default function AppDetailScreen() {
         }
       );
       await dl.downloadAsync();
+
+      // Kiểm tra tệp tin tải về để tránh lỗi zsign -1 do tải trượt/file HTML lỗi
+      const fileInfo = await FileSystem.getInfoAsync(rawIpaPath);
+      if (!fileInfo.exists || fileInfo.size < 100 * 1024) {
+        throw new Error(currentLang === 'en' ? 'Downloaded file is corrupt or too small. Please verify the download source.' : 'Tệp tải về bị lỗi hoặc quá nhỏ. Sếp vui lòng kiểm tra nguồn tải nhé.');
+      }
 
       setDownloadState('Đang ký App...');
       const signResult = await IpaSigner.signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
@@ -322,7 +403,7 @@ export default function AppDetailScreen() {
                     key={index} 
                     style={[styles.screenshotBox, SHADOWS.glowCard]} 
                     activeOpacity={0.9} 
-                    onPress={() => setActiveScreenshot(img)}
+                    onPress={() => setActiveScreenshotIndex(index)}
                   >
                     <Image source={{ uri: img }} style={styles.screenshotImg} resizeMode="contain" />
                   </TouchableOpacity>
@@ -347,15 +428,15 @@ export default function AppDetailScreen() {
                   <Zap size={18} color={isVipApp ? COLORS.gold : (isLight ? COLORS.primary : COLORS.primaryLight)} fill={isVipApp ? COLORS.gold : (isLight ? COLORS.primary : COLORS.primaryLight)} />
                   <Text style={[styles.modTitle, { color: isVipApp ? COLORS.gold : (isLight ? COLORS.primary : '#FFFFFF') }]}>{TXT.modFeatures}</Text>
                </View>
-               <Text style={[styles.modText, { color: COLORS.textSecondary }]}>
-                 {translating ? TXT.loading : (translatedMod || app.modFeatures)}
-               </Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.descText} numberOfLines={isDescExpanded ? undefined : 3}>
-            {translating ? TXT.loading : (translatedDesc || app.description)}
-          </Text>
+                <Text style={[styles.modText, { color: COLORS.textSecondary }]}>
+                  {app.modFeatures || ''}
+                </Text>
+             </View>
+           ) : null}
+ 
+           <Text style={styles.descText} numberOfLines={isDescExpanded ? undefined : 3}>
+             {translatedDesc || app.description || ''}
+           </Text>
           <TouchableOpacity onPress={() => setIsDescExpanded(!isDescExpanded)} style={{alignSelf: 'flex-end', marginTop: 4}}>
             <Text style={styles.moreText}>{isDescExpanded ? TXT.collapse : TXT.more}</Text>
           </TouchableOpacity>
@@ -371,18 +452,53 @@ export default function AppDetailScreen() {
       </ScrollView>
 
       {/* MODAL PHÓNG TO ẢNH SCREENSHOT */}
-      <Modal visible={activeScreenshot !== null} transparent animationType="fade" statusBarTranslucent>
+      <Modal visible={activeScreenshotIndex !== null} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.fullscreenOverlay}>
-          <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
-          <TouchableOpacity style={styles.closeFullscreenBtn} onPress={() => setActiveScreenshot(null)}>
-            <X color="#FFFFFF" size={24} />
-          </TouchableOpacity>
-          {activeScreenshot && (
-            <Image 
-              source={{ uri: activeScreenshot }} 
-              style={styles.fullscreenImg} 
-              resizeMode="contain" 
-            />
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setActiveScreenshotIndex(null)}>
+              <BlurView intensity={45} tint="dark" style={StyleSheet.absoluteFill} />
+            </TouchableOpacity>
+          </Animated.View>
+          
+          <View style={styles.dragHandle} />
+
+          {activeScreenshotIndex !== null && app.screenshots && app.screenshots.length > 0 && (
+            <Animated.View 
+              style={[
+                styles.fullscreenWrapper, 
+                { 
+                  transform: [
+                    { translateY: dragY }, 
+                    { scale: imageScale }
+                  ] 
+                }
+              ]}
+              {...panResponder.panHandlers}
+            >
+              <FlatList
+                data={app.screenshots}
+                keyExtractor={(item, index) => index.toString()}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                initialScrollIndex={activeScreenshotIndex}
+                onScrollToIndexFailed={() => {}}
+                getItemLayout={(data, idx) => ({
+                  length: width,
+                  offset: width * idx,
+                  index: idx,
+                })}
+                renderItem={({ item }) => (
+                  <View style={styles.fullscreenImgWrapper}>
+                    <Image 
+                      source={{ uri: item }} 
+                      style={styles.fullscreenImg} 
+                      resizeMode="contain" 
+                    />
+                  </View>
+                )}
+              />
+            </Animated.View>
           )}
         </View>
       </Modal>
@@ -451,21 +567,33 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   
   fullscreenOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeFullscreenBtn: {
+  dragHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    right: 20,
+    top: Platform.OS === 'ios' ? 65 : 45,
     zIndex: 100,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    padding: 10,
-    borderRadius: 25,
+  },
+  fullscreenWrapper: {
+    width: width,
+    height: height * 0.8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImgWrapper: {
+    width: width,
+    height: height * 0.8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fullscreenImg: {
-    width: width * 0.95,
-    height: height * 0.85,
+    width: width * 0.9,
+    height: '100%',
   }
 });

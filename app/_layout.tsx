@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, Dimensions, Animated } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Animated, Image, Easing } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,10 +9,10 @@ import { initAppThemeAndLang } from '../constants/theme';
 const { width } = Dimensions.get('window');
 
 export default function RootLayout() {
-  const logoScale = useRef(new Animated.Value(0.3)).current;
+  const logoScale = useRef(new Animated.Value(0.95)).current; // Bắt đầu từ 0.95 để scale nhẹ nhàng sang trọng
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslateY = useRef(new Animated.Value(20)).current;
+  const textTranslateY = useRef(new Animated.Value(15)).current; // Tịnh tiến nhẹ nhàng 15px
   const authorOpacity = useRef(new Animated.Value(0)).current;
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const [showIntro, setShowIntro] = useState(true);
@@ -21,53 +21,57 @@ export default function RootLayout() {
     // 1. Khởi tạo theme và ngôn ngữ
     initAppThemeAndLang();
 
-    // 2. Chạy chuỗi hiệu ứng hoạt họa Intro
-    Animated.sequence([
-      // Logo nở ra và hiện lên
-      Animated.parallel([
-        Animated.spring(logoScale, {
-          toValue: 1,
-          friction: 6,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoOpacity, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Tên app dịch chuyển lên và hiện lên
-      Animated.parallel([
-        Animated.timing(textOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(textTranslateY, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]),
-      // Tên tác giả hiện lên cuối cùng
+    // 2. Chạy hiệu ứng hoạt họa Intro song song mượt mà chuẩn Apple (Easing Cubic Bezier)
+    Animated.parallel([
+      // Logo hiện lên
+      Animated.timing(logoOpacity, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        useNativeDriver: true,
+      }),
+      Animated.timing(logoScale, {
+        toValue: 1,
+        duration: 1400,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        useNativeDriver: true,
+      }),
+      // Tagline tịnh tiến và hiện lên
+      Animated.timing(textOpacity, {
+        toValue: 1,
+        duration: 800,
+        delay: 500,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        useNativeDriver: true,
+      }),
+      Animated.timing(textTranslateY, {
+        toValue: 0,
+        duration: 800,
+        delay: 500,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        useNativeDriver: true,
+      }),
+      // Credit nhà sản xuất
       Animated.timing(authorOpacity, {
         toValue: 1,
-        duration: 500,
+        duration: 800,
+        delay: 1000,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
         useNativeDriver: true,
       }),
     ]).start();
 
-    // 3. Tự động biến mất sau 2.5 giây
+    // 3. Tự động biến mất sau 3.0 giây để trải nghiệm intro được trọn vẹn hơn
     const timer = setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0,
-        duration: 600,
+        duration: 700,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
         useNativeDriver: true,
       }).start(() => {
         setShowIntro(false);
       });
-    }, 2500);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -92,45 +96,39 @@ export default function RootLayout() {
       {showIntro && (
         <Animated.View style={[StyleSheet.absoluteFill, styles.splashContainer, { opacity: screenOpacity }]}>
           <LinearGradient
-            colors={['#07070A', '#0F0F14', '#07070A']}
+            colors={['#020204', '#07070A', '#020204']}
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.splashContent}>
-            {/* Logo Squircle với hiệu ứng phát sáng */}
+            {/* Logo VSign dạng trần cực kì tinh tế */}
             <Animated.View style={[
-              styles.logoSquircle,
+              styles.logoWrapper,
               {
                 opacity: logoOpacity,
                 transform: [{ scale: logoScale }],
               }
             ]}>
-              <LinearGradient
-                colors={['#0A84FF', '#30B0FF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
+              <Image 
+                source={require('../assets/images/vsign_logo_white.png')} 
+                style={styles.logoImage}
+                resizeMode="contain"
               />
-              <ShieldCheck color="#FFFFFF" size={54} strokeWidth={2} />
-              <View style={styles.sparkleOverlay}>
-                <Sparkles color="#FFFFFF" size={16} />
-              </View>
             </Animated.View>
 
-            {/* Tên ứng dụng */}
+            {/* Tagline chữ mỏng tinh tế và giãn rộng */}
             <Animated.View style={{
               opacity: textOpacity,
               transform: [{ translateY: textTranslateY }],
               alignItems: 'center',
-              marginTop: 24,
+              marginTop: 32,
             }}>
-              <Text style={styles.appName}>VSign</Text>
-              <Text style={styles.tagline}>KÝ APP NGOẠI TUYẾN CHUYÊN NGHIỆP</Text>
+              <Text style={styles.tagline}>HỆ THỐNG KÝ APP NGOẠI TUYẾN CHUYÊN NGHIỆP</Text>
             </Animated.View>
 
-            {/* Chữ tác giả ở dưới cùng */}
+            {/* Đơn vị sản xuất chịu trách nhiệm */}
             <Animated.View style={[styles.authorContainer, { opacity: authorOpacity }]}>
-              <Text style={styles.authorLabel}>DESIGNED & DEVELOPED BY</Text>
-              <Text style={styles.authorName}>VTN vuthanhnghi</Text>
+              <Text style={styles.authorLabel}>PRODUCED BY</Text>
+              <Text style={styles.authorName}>IPAVIET.SITE</Text>
             </Animated.View>
           </View>
         </Animated.View>
@@ -151,36 +149,28 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
-  logoSquircle: {
-    width: 104,
-    height: 104,
-    borderRadius: 24,
+  logoWrapper: {
+    width: 220,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#0A84FF',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 10,
-    position: 'relative',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  sparkleOverlay: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-  },
-  appName: {
-    fontSize: 44,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -1,
+  logoImage: {
+    width: 180,
+    height: 110,
   },
   tagline: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 9,
+    fontWeight: '300', // Đẹp nhẹ nhàng quý phái kiểu Apple
     color: '#8E8E93',
-    letterSpacing: 2.2,
-    marginTop: 8,
+    letterSpacing: 3.5, // Tỷ lệ vàng kéo giãn font chữ
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   authorContainer: {
     position: 'absolute',
@@ -188,16 +178,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   authorLabel: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 8,
+    fontWeight: '400',
     color: '#8E8E93',
-    letterSpacing: 2,
+    letterSpacing: 2.5,
     marginBottom: 4,
   },
   authorName: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#FFE259', // Vàng hoàng gia xịn sò
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    color: '#FFFFFF', // Trắng tối giản tinh khiết
+    letterSpacing: 4.5,
   },
 });

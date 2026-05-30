@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, TextInput, ScrollView, Dimensions, Keyboard, Animated, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Search, Trophy, Gamepad2, Award, Rocket } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -78,6 +78,12 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       );
       await dl.downloadAsync();
 
+      // Kiểm tra tệp tin tải về để tránh lỗi zsign -1 do tải trượt/file HTML lỗi
+      const fileInfo = await FileSystem.getInfoAsync(rawIpaPath);
+      if (!fileInfo.exists || fileInfo.size < 100 * 1024) {
+        throw new Error(currentLang === 'en' ? 'Downloaded file is corrupt or too small. Please verify the download source.' : 'Tệp tải về bị lỗi hoặc quá nhỏ. Sếp vui lòng kiểm tra nguồn tải nhé.');
+      }
+
       setStatus('Đang ký App...');
       const signResult = await IpaSigner.signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
       
@@ -124,11 +130,11 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
 };
 
 const DISCOVER_CARDS = [
-  { id: '1', title: 'Top Ứng Dụng', colors: ['#0A84FF', '#0055D4'], icon: 'trophy', key: 'topApps' },
-  { id: '2', title: 'Top Trò Chơi', colors: ['#FF9F0A', '#FF3B30'], icon: 'game-controller', key: 'topGames' },
-  { id: '3', title: 'Bán Chạy Nhất', colors: ['#30D158', '#108040'], icon: 'ribbon', key: 'bestSellers' },
-  { id: '4', title: 'Hiệu Suất', colors: ['#BF5AF2', '#6200EE'], icon: 'rocket', key: 'performance' }
-] as const;
+  { id: '1', title: 'Top Ứng Dụng', colors: ['#0A84FF', '#0055D4'], icon: Trophy, key: 'topApps' },
+  { id: '2', title: 'Top Trò Chơi', colors: ['#FF9F0A', '#FF3B30'], icon: Gamepad2, key: 'topGames' },
+  { id: '3', title: 'Bán Chạy Nhất', colors: ['#30D158', '#108040'], icon: Award, key: 'bestSellers' },
+  { id: '4', title: 'Hiệu Suất', colors: ['#BF5AF2', '#6200EE'], icon: Rocket, key: 'performance' }
+];
 
 export default function SearchScreen() {
   useThemeUpdate();
@@ -215,18 +221,21 @@ export default function SearchScreen() {
 
           <View style={[styles.sectionHeader, {marginTop: 35}]}><Text style={styles.sectionTitle}>{TXT.discoverTitle}</Text></View>
           <View style={styles.gridContainer}>
-             {DISCOVER_CARDS.map(card => (
-               <TouchableOpacity key={card.id} style={[styles.discoverCard, SHADOWS.glowCard]} activeOpacity={0.8}>
-                  <LinearGradient
-                    colors={card.colors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <Ionicons name={card.icon as any} size={42} color="rgba(255,255,255,0.18)" style={styles.cardIconBg} />
-                  <Text style={styles.cardTitle}>{TXT[card.key as keyof typeof TXT] || card.title}</Text>
-               </TouchableOpacity>
-             ))}
+              {DISCOVER_CARDS.map(card => {
+                const CardIcon = card.icon;
+                return (
+                  <TouchableOpacity key={card.id} style={[styles.discoverCard, SHADOWS.glowCard]} activeOpacity={0.8}>
+                    <LinearGradient
+                      colors={card.colors as any}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <CardIcon size={42} color="rgba(255,255,255,0.18)" style={styles.cardIconBg} />
+                    <Text style={styles.cardTitle}>{TXT[card.key as keyof typeof TXT] || card.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
           </View>
         </ScrollView>
       )}
@@ -235,7 +244,7 @@ export default function SearchScreen() {
       <Animated.View style={[styles.floatingSearchContainer, { bottom: keyboardOffset }]}>
         <View style={[styles.floatingSearchBarShadow, SHADOWS.glowDark]}>
           <BlurView intensity={25} tint={isLightMode ? 'light' : 'dark'} style={styles.floatingSearchBar}>
-            <Ionicons name="search" size={20} color="#8E8E93" style={{marginLeft: 5, marginRight: 10}} />
+            <Search size={20} color="#8E8E93" style={{marginLeft: 5, marginRight: 10}} />
             <TextInput style={[styles.searchInput, { color: COLORS.text }]} placeholder={TXT.searchPlaceholder} placeholderTextColor="#8E8E93" value={query} onChangeText={setQuery} autoCapitalize="none" clearButtonMode="while-editing" />
           </BlurView>
         </View>

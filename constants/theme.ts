@@ -314,7 +314,18 @@ export const TRANSLATIONS = {
     daysRemaining: " ngày",
     confirmLogoutTitle: "Đăng xuất",
     confirmLogoutMsg: "Rời khỏi hệ thống?",
-    confirmExit: "Thoát"
+    confirmExit: "Thoát",
+    // Background remover translations
+    bgRemoverTitle: "TÁCH NỀN HÌNH ẢNH",
+    bgRemoverSub: "Tách nền trắng/đen của ảnh làm logo/icon trong suốt",
+    selectImageBtn: "Chọn ảnh từ thiết bị",
+    removeWhiteBgBtn: "Tách Nền Trắng",
+    removeBlackBgBtn: "Tách Nền Đen",
+    processingText: "Đang xử lý tách nền...",
+    saveShareResultBtn: "Chia sẻ / Lưu ảnh sạch",
+    noImageSelected: "Chưa chọn ảnh nào.",
+    bgRemoverLabel: "Công cụ Tách Nền",
+    utilSection: "CÔNG CỤ TIỆN ÍCH"
   },
   en: {
     // Tab bar labels
@@ -452,7 +463,18 @@ export const TRANSLATIONS = {
     daysRemaining: " days",
     confirmLogoutTitle: "Log Out",
     confirmLogoutMsg: "Are you sure you want to log out?",
-    confirmExit: "Exit"
+    confirmExit: "Exit",
+    // Background remover translations
+    bgRemoverTitle: "IMAGE BACKGROUND REMOVER",
+    bgRemoverSub: "Make white or black backgrounds transparent for clean logos/icons",
+    selectImageBtn: "Select image from device",
+    removeWhiteBgBtn: "Remove White Background",
+    removeBlackBgBtn: "Remove Black Background",
+    processingText: "Removing background...",
+    saveShareResultBtn: "Share / Save Clean Image",
+    noImageSelected: "No image selected.",
+    bgRemoverLabel: "Background Remover",
+    utilSection: "UTILITY TOOLS"
   }
 };
 

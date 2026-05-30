@@ -1,11 +1,11 @@
 import React, { useRef, useEffect } from 'react';
 import { View, TouchableOpacity, StyleSheet, Animated, Dimensions, Text } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { IconSymbol } from '../../components/ui/icon-symbol';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5;
@@ -18,30 +18,22 @@ const TAB_CONFIG = [
   { name: 'search',   icon: 'magnifyingglass', iconActive: 'magnifyingglass' },
   { name: 'sign',     icon: 'wrench',          iconActive: 'wrench.fill' },
   { name: 'account',  icon: 'person',          iconActive: 'person.fill' },
-];
-
-const IONICON_MAP: Record<string, { default: string; active: string }> = {
-  'index':    { default: 'home-outline',     active: 'home' },
-  'apps':     { default: 'grid-outline',     active: 'grid' },
-  'search':   { default: 'search-outline',   active: 'search' },
-  'sign':     { default: 'build-outline',    active: 'build' },
-  'account':  { default: 'person-outline',   active: 'person' },
-};
+] as const;
 
 function TabIcon({ name, isFocused }: { name: string; isFocused: boolean }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   
   useEffect(() => {
     Animated.spring(scaleAnim, {
-      toValue: isFocused ? 1.15 : 1,
+      toValue: isFocused ? 1.12 : 1,
       tension: 120,
       friction: 8,
       useNativeDriver: true,
     }).start();
   }, [isFocused]);
 
-  const icons = IONICON_MAP[name] || { default: 'ellipse-outline', active: 'ellipse' };
-  const iconName = isFocused ? icons.active : icons.default;
+  const config = TAB_CONFIG.find(c => c.name === name);
+  const symbol = config ? (isFocused ? config.iconActive : config.icon) : 'house';
   
   const labelMap: Record<string, string> = {
     'index': TXT.today,
@@ -55,8 +47,8 @@ function TabIcon({ name, isFocused }: { name: string; isFocused: boolean }) {
 
   return (
     <Animated.View style={[styles.iconWrapper, { transform: [{ scale: scaleAnim }] }]}>
-      <Ionicons
-        name={iconName as any}
+      <IconSymbol
+        name={symbol}
         size={isFocused ? 22 : 21}
         color={isFocused ? '#FFFFFF' : (isLight ? '#8E8E93' : 'rgba(255,255,255,0.45)')}
       />

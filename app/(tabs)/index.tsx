@@ -9,6 +9,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fetchRegularApps, fetchVIPApps, AppItem } from '../../constants/data';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { Sparkles, Flame } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -256,7 +257,10 @@ export default function HomeScreen() {
             {/* ── VIP KHO NỔI BẬT ── */}
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={[styles.sectionTitle, { color: COLORS.gold }]}>⭐ {TXT.vip}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Sparkles size={20} color={COLORS.gold} fill={COLORS.gold} />
+                  <Text style={[styles.sectionTitle, { color: COLORS.gold, marginBottom: 0 }]}>{TXT.vip}</Text>
+                </View>
                 <Text style={[styles.sectionSubtitle, { color: COLORS.textMuted }]}>{TXT.langName === 'English' ? 'Exclusive apps updated weekly' : 'App độc quyền mỗi tuần'}</Text>
               </View>
               <TouchableOpacity onPress={() => router.push('/vip')} activeOpacity={0.7}>
@@ -278,7 +282,10 @@ export default function HomeScreen() {
             {/* ── MỚI CẬP NHẬT ── */}
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={[styles.sectionTitle, { color: COLORS.text }]}>🔥 {TXT.langName === 'English' ? 'Newly Updated' : 'Mới Cập Nhật'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Flame size={20} color={COLORS.text} fill={COLORS.text} />
+                  <Text style={[styles.sectionTitle, { color: COLORS.text, marginBottom: 0 }]}>{TXT.langName === 'English' ? 'Newly Updated' : 'Mới Cập Nhật'}</Text>
+                </View>
                 <Text style={[styles.sectionSubtitle, { color: COLORS.textMuted }]}>{TXT.langName === 'English' ? 'Latest free applications' : 'Ứng dụng miễn phí mới nhất'}</Text>
               </View>
             </View>

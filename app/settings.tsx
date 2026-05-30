@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,7 +13,8 @@ import JSZip from 'jszip';
 // ICONS
 import { 
   Palette, Languages, ShieldCheck, FileKey, Trash2, PlusCircle, 
-  CheckCircle2, X, RefreshCw, Info, ChevronRight, ChevronLeft, Award, HardDrive
+  CheckCircle2, X, RefreshCw, Info, ChevronRight, ChevronLeft, Award, HardDrive,
+  Scissors
 } from 'lucide-react-native';
 
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, notifyThemeChange, loadTheme, loadLanguage, THEME_STYLES, TRANSLATIONS, TXT } from '../constants/theme';
@@ -136,6 +137,59 @@ export default function SettingsScreen() {
   const [certPassword, setCertPassword] = useState('');
   const [isUnzipping, setIsUnzipping] = useState(false);
   const [cacheSize, setCacheSize] = useState('0 MB');
+
+  // Background Remover States
+  const [bgRemoverVisible, setBgRemoverVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ uri: string; name: string } | null>(null);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [isProcessingBg, setIsProcessingBg] = useState(false);
+
+  const pickImageForBgRemoval = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/*',
+        copyToCacheDirectory: true
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      setSelectedImage({ uri: asset.uri, name: asset.name });
+      setProcessedImage(null);
+    } catch (error) {
+      Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to select image.' : 'Không thể chọn ảnh.');
+    }
+  };
+
+  const handleRemoveBackground = async (mode: 'white' | 'black') => {
+    if (!selectedImage) return;
+    setIsProcessingBg(true);
+    try {
+      const { removeBackground } = require('../modules/ipa-signer');
+      const res = await removeBackground(selectedImage.uri, mode);
+      if (res.success && res.outputPath) {
+        setProcessedImage('file://' + res.outputPath);
+        Alert.alert(TXT.successLabel, TXT.langName === 'English' ? 'Background removed successfully!' : 'Đã tách nền thành công!');
+      } else {
+        throw new Error();
+      }
+    } catch (e) {
+      Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to remove background.' : 'Tách nền thất bại. Vui lòng kiểm tra định dạng ảnh.');
+    } finally {
+      setIsProcessingBg(false);
+    }
+  };
+
+  const shareProcessedImage = async () => {
+    if (!processedImage) return;
+    try {
+      const Sharing = require('expo-sharing');
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(processedImage);
+      }
+    } catch (error) {
+      Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Could not share image.' : 'Không thể chia sẻ ảnh.');
+    }
+  };
 
   useEffect(() => {
     fetchSettings();
@@ -451,6 +505,23 @@ export default function SettingsScreen() {
         </ScrollView>
       </View>
 
+      {/* SECTION: CÔNG CỤ TIỆN ÍCH */}
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: COLORS.textMuted }]}>{(TXT as any).utilSection}</Text>
+      </View>
+
+      <View style={[styles.cardGroup, { backgroundColor: COLORS.surfaceCard, borderColor: COLORS.border }]}>
+        <TouchableOpacity style={styles.rowItem} activeOpacity={0.7} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBgRemoverVisible(true); }}>
+          <View style={styles.rowLabelContainer}>
+            <Scissors color={COLORS.primary} size={18} strokeWidth={2.2} />
+            <Text style={[styles.rowLabel, { color: COLORS.text }]}>{(TXT as any).bgRemoverLabel}</Text>
+          </View>
+          <View style={styles.rowRightSide}>
+            <ChevronRight color={COLORS.textMuted} size={16} />
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* SECTION 3: THIẾT LẬP HỆ THỐNG */}
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: COLORS.textMuted }]}>{TXT.systemSettingsSection}</Text>
@@ -672,6 +743,116 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
+      {/* BACKGROUND REMOVER MODAL */}
+      <Modal visible={bgRemoverVisible} transparent animationType="slide" statusBarTranslucent>
+        <View style={styles.modalBg}>
+          <View style={[styles.modalBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border, height: '85%' }]}>
+            <TouchableOpacity 
+              style={[styles.closeModalBtn, { backgroundColor: COLORS.surface }]} 
+              onPress={() => !isProcessingBg && setBgRemoverVisible(false)}
+            >
+              <X color="#888" size={24} />
+            </TouchableOpacity>
+
+            <Text style={[styles.modalTitle, { color: COLORS.text, marginTop: 10 }]}>
+              {(TXT as any).bgRemoverTitle}
+            </Text>
+            <Text style={[styles.modalSub, { color: COLORS.textMuted, textAlign: 'center', marginHorizontal: 20 }]}>
+              {(TXT as any).bgRemoverSub}
+            </Text>
+
+            <ScrollView 
+              showsVerticalScrollIndicator={false} 
+              style={{ width: '100%', marginTop: 20 }} 
+              contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
+            >
+              {/* Image Preview / Picker Box */}
+              <TouchableOpacity 
+                style={[
+                  styles.imagePickerBox, 
+                  { 
+                    backgroundColor: COLORS.surfaceCard, 
+                    borderColor: selectedImage ? COLORS.primary : COLORS.border,
+                    borderStyle: selectedImage ? 'solid' : 'dashed'
+                  }
+                ]}
+                onPress={pickImageForBgRemoval}
+                disabled={isProcessingBg}
+              >
+                {processedImage ? (
+                  <Image source={{ uri: processedImage }} style={styles.previewImage} resizeMode="contain" />
+                ) : selectedImage ? (
+                  <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} resizeMode="contain" />
+                ) : (
+                  <View style={{ alignItems: 'center', gap: 10 }}>
+                    <PlusCircle color={COLORS.primary} size={36} />
+                    <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>
+                      {(TXT as any).selectImageBtn}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Status or Progress */}
+              {isProcessingBg && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 15 }}>
+                  <ActivityIndicator color={COLORS.primary} />
+                  <Text style={{ color: COLORS.primary, fontWeight: '600' }}>
+                    {(TXT as any).processingText}
+                  </Text>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              {selectedImage && !isProcessingBg && (
+                <View style={{ width: '100%', gap: 12, marginTop: 20 }}>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity 
+                      style={[styles.actionButtonSmall, { backgroundColor: COLORS.surface, borderColor: COLORS.border, borderWidth: 1 }]}
+                      onPress={pickImageForBgRemoval}
+                    >
+                      <Text style={{ color: COLORS.text, fontWeight: '600' }}>
+                        {TXT.cancelBtn}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={[styles.actionButtonSmall, { backgroundColor: COLORS.primary }]}
+                      onPress={() => handleRemoveBackground('white')}
+                    >
+                      <Text style={{ color: COLORS.textDark, fontWeight: '700' }}>
+                        {(TXT as any).removeWhiteBgBtn}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity 
+                    style={[styles.actionButtonLarge, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.primary, borderWidth: 1 }]}
+                    onPress={() => handleRemoveBackground('black')}
+                  >
+                    <Text style={{ color: COLORS.primary, fontWeight: '700' }}>
+                      {(TXT as any).removeBlackBgBtn}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Share / Save Button */}
+              {processedImage && !isProcessingBg && (
+                <TouchableOpacity 
+                  style={[styles.shareResultBtn, { backgroundColor: COLORS.success, marginTop: 25 }]}
+                  onPress={shareProcessedImage}
+                >
+                  <Text style={{ color: COLORS.textDark, fontWeight: '800', letterSpacing: 0.5 }}>
+                    {(TXT as any).saveShareResultBtn}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   );
 }
@@ -764,5 +945,11 @@ const styles = StyleSheet.create({
 
   infoBox: { width: '100%', padding: 24, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: 'rgba(128,128,128,0.1)' },
-  infoCloseBtn: { width: '100%', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 }
+  infoCloseBtn: { width: '100%', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+
+  imagePickerBox: { width: '100%', height: 220, borderRadius: 18, borderStyle: 'dashed', borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginVertical: 10, overflow: 'hidden' },
+  previewImage: { width: '100%', height: '100%' },
+  actionButtonSmall: { flex: 1, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  actionButtonLarge: { width: '100%', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  shareResultBtn: { width: '100%', height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center' }
 });

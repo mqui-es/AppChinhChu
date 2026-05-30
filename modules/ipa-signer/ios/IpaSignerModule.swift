@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import UIKit
 
 // Khai báo liên kết trực tiếp với hàm C++ zsign_wrapper trong ZSignWrapper.mm
 @_silgen_name("zsign_wrapper")
@@ -94,6 +95,96 @@ public class IpaSignerModule: Module {
             }
           }
         }
+      }
+    }
+
+    AsyncFunction("removeBackground") { (imagePath: String, mode: String, promise: Promise) in
+      let cleanImgPath = cleanPath(imagePath)
+      let fm = FileManager.default
+      guard fm.fileExists(atPath: cleanImgPath) else {
+        promise.reject("FILE_NOT_FOUND", "Không tìm thấy file ảnh: \(cleanImgPath)")
+        return
+      }
+      
+      guard let image = UIImage(contentsOfFile: cleanImgPath), let cgImage = image.cgImage else {
+        promise.reject("INVALID_IMAGE", "File không phải là ảnh hợp lệ hoặc không thể đọc.")
+        return
+      }
+      
+      let width = cgImage.width
+      let height = cgImage.height
+      let colorSpace = CGColorSpaceCreateDeviceRGB()
+      
+      var rawData = [UInt8](repeating: 0, count: width * height * 4)
+      let bytesPerPixel = 4
+      let bytesPerRow = bytesPerPixel * width
+      let bitsPerComponent = 8
+      
+      guard let context = CGContext(
+        data: &rawData,
+        width: width,
+        height: height,
+        bitsPerComponent: bitsPerComponent,
+        bytesPerRow: bytesPerRow,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+      ) else {
+        promise.reject("CONTEXT_ERROR", "Không thể tạo đồ họa xử lý ảnh.")
+        return
+      }
+      
+      context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+      
+      let threshold: Int = 40 // Tự động làm sạch viền
+      
+      if mode == "white" {
+        for y in 0..<height {
+          for x in 0..<width {
+            let byteIndex = (bytesPerRow * y) + x * bytesPerPixel
+            let r = Int(rawData[byteIndex])
+            let g = Int(rawData[byteIndex + 1])
+            let b = Int(rawData[byteIndex + 2])
+            if r >= (255 - threshold) && g >= (255 - threshold) && b >= (255 - threshold) {
+              rawData[byteIndex + 3] = 0
+            }
+          }
+        }
+      } else if mode == "black" {
+        for y in 0..<height {
+          for x in 0..<width {
+            let byteIndex = (bytesPerRow * y) + x * bytesPerPixel
+            let r = Int(rawData[byteIndex])
+            let g = Int(rawData[byteIndex + 1])
+            let b = Int(rawData[byteIndex + 2])
+            if r <= threshold && g <= threshold && b <= threshold {
+              rawData[byteIndex + 3] = 0
+            }
+          }
+        }
+      }
+      
+      guard let newCGImage = context.makeImage() else {
+        promise.reject("IMAGE_ERROR", "Không thể hoàn thiện ảnh mới.")
+        return
+      }
+      
+      let newImage = UIImage(cgImage: newCGImage)
+      let documentDirectory = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
+      let outputFilename = "nobg_\(Int(Date().timeIntervalSince1970)).png"
+      let outputFilePath = documentDirectory.appendingPathComponent(outputFilename).path
+      
+      if let pngData = newImage.pngData() {
+        do {
+          try pngData.write(to: URL(fileURLWithPath: outputFilePath))
+          promise.resolve([
+            "success": true,
+            "outputPath": outputFilePath
+          ])
+        } catch {
+          promise.reject("WRITE_ERROR", "Không thể lưu ảnh đã tách nền.")
+        }
+      } else {
+        promise.reject("PNG_ERROR", "Không thể chuyển đổi thành dữ liệu PNG.")
       }
     }
   }
