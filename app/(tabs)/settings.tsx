@@ -143,7 +143,7 @@ export default function SettingsScreen() {
   }, []);
 
   const fetchSettings = async () => {
-    const style = await AsyncStorage.getItem('@app_theme_style') || 'light';
+    const style = await AsyncStorage.getItem('@app_theme_style') || 'obsidian';
     const lang = await AsyncStorage.getItem('@app_lang') || 'vi';
     const activeCert = await AsyncStorage.getItem('@active_cert_id');
     setCurrentThemeStyle(style);
@@ -358,11 +358,15 @@ export default function SettingsScreen() {
   };
 
   const getThemeName = (style: string) => {
-    if (style === 'obsidian') return 'Obsidian Dark';
-    if (style === 'gold') return 'Liquid Gold VIP';
-    if (style === 'neon') return 'Cyber Neon';
-    if (style === 'light') return 'Classic Light';
-    return 'Classic Light';
+    const names: Record<string, string> = {
+      obsidian: '⚫ Obsidian Dark',
+      gold: '✨ Liquid Gold VIP',
+      neon: '💜 Cyber Neon',
+      light: '☀️ Classic Light',
+      aurora: '🌊 Aurora Teal',
+      midnight: '🌌 Midnight Indigo',
+    };
+    return names[style] || 'Classic Light';
   };
 
   return (

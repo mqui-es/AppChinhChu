@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // HỆ THỐNG PHONG CÁCH GIAO DIỆN (THEME STYLES)
 export const THEME_STYLES = {
   obsidian: {
-    background: '#070708', // Đen obsidian vũ trụ
+    background: '#07070A', // Đen obsidian vũ trụ
     bgGradient: ['#070708', '#111115', '#070708'] as const,
     surface: 'rgba(28, 28, 30, 0.65)',
     surfaceSolid: '#121215',
@@ -114,11 +114,67 @@ export const THEME_STYLES = {
     border: 'rgba(0, 0, 0, 0.08)',
     borderActive: 'rgba(0, 122, 255, 0.4)',
     borderGold: 'rgba(179, 146, 0, 0.2)',
-  }
+  },
+  aurora: {
+    background: '#050D12', // Teal-midnight deep
+    bgGradient: ['#050D12', '#0D1A22', '#050D12'] as const,
+    surface: 'rgba(10, 30, 40, 0.65)',
+    surfaceSolid: '#0A1820',
+    surfaceCard: 'rgba(8, 24, 32, 0.80)',
+    surfaceAccent: 'rgba(0, 210, 210, 0.04)',
+    primary: '#00C9B1',
+    primaryLight: '#40DFCC',
+    primaryNeon: '#00FFE0',
+    primaryGlow: 'rgba(0, 201, 177, 0.25)',
+    primaryGradient: ['#00C9B1', '#006EFF'] as const,
+    gold: '#FFE259',
+    goldSecondary: '#FFA751',
+    goldGradient: ['#FFE259', '#FFA751'] as const,
+    goldGlow: 'rgba(255, 215, 0, 0.25)',
+    success: '#00E096',
+    successGradient: ['#00E096', '#00C9B1'] as const,
+    danger: '#FF4F6D',
+    warning: '#FFD60A',
+    text: '#FFFFFF',
+    textSecondary: '#E0F0F5',
+    textMuted: '#6B9EAA',
+    textDark: '#0A0A0C',
+    border: 'rgba(0, 201, 177, 0.12)',
+    borderActive: 'rgba(0, 201, 177, 0.4)',
+    borderGold: 'rgba(255, 226, 89, 0.25)',
+  },
+  midnight: {
+    background: '#01010D',
+    bgGradient: ['#01010D', '#060618', '#01010D'] as const,
+    surface: 'rgba(6, 6, 28, 0.70)',
+    surfaceSolid: '#05051A',
+    surfaceCard: 'rgba(5, 5, 22, 0.85)',
+    surfaceAccent: 'rgba(88, 86, 214, 0.06)',
+    primary: '#5856D6',
+    primaryLight: '#7F7DFF',
+    primaryNeon: '#8480FF',
+    primaryGlow: 'rgba(88, 86, 214, 0.30)',
+    primaryGradient: ['#5856D6', '#BF5AF2'] as const,
+    gold: '#FFE259',
+    goldSecondary: '#FFA751',
+    goldGradient: ['#FFE259', '#FFA751'] as const,
+    goldGlow: 'rgba(255, 215, 0, 0.25)',
+    success: '#30D158',
+    successGradient: ['#30D158', '#40E0D0'] as const,
+    danger: '#FF453A',
+    warning: '#FFD60A',
+    text: '#FFFFFF',
+    textSecondary: '#EBEBF5',
+    textMuted: '#7070A0',
+    textDark: '#FFFFFF',
+    border: 'rgba(88, 86, 214, 0.15)',
+    borderActive: 'rgba(88, 86, 214, 0.5)',
+    borderGold: 'rgba(255, 226, 89, 0.25)',
+  },
 };
 
 // Object màu hiện tại (Sẽ bị ghi đè in-place khi đổi giao diện)
-export const COLORS = { ...THEME_STYLES.light };
+export const COLORS = { ...THEME_STYLES.obsidian };
 
 // TỪ ĐIỂN DỊCH (TRANSLATIONS)
 export const TRANSLATIONS = {
@@ -191,7 +247,7 @@ export const loadTheme = async () => {
     if (style && THEME_STYLES[style]) {
       Object.assign(COLORS, THEME_STYLES[style]);
     } else {
-      Object.assign(COLORS, THEME_STYLES.light);
+      Object.assign(COLORS, THEME_STYLES.obsidian);
     }
   } catch (e) {
     console.error("Lỗi loadTheme:", e);

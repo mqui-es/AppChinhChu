@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Dimensions, Text } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -8,79 +8,119 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, useThemeUpdate } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
-const TAB_BAR_WIDTH = width - 32; // Sát lề hơn, nhìn hiện đại và thoáng hơn
 const TAB_COUNT = 7;
-const TAB_WIDTH = (TAB_BAR_WIDTH - 10) / TAB_COUNT;
+const TAB_BAR_WIDTH = width - 28;
+const TAB_WIDTH = (TAB_BAR_WIDTH - 12) / TAB_COUNT;
+
+const TAB_CONFIG = [
+  { name: 'index',    icon: 'house',          iconActive: 'house.fill',       label: 'Hôm nay' },
+  { name: 'apps',     icon: 'square.grid.2x2', iconActive: 'square.grid.2x2.fill', label: 'Kho' },
+  { name: 'search',   icon: 'magnifyingglass', iconActive: 'magnifyingglass', label: 'Tìm' },
+  { name: 'sign',     icon: 'wrench',          iconActive: 'wrench.fill',      label: 'Ký' },
+  { name: 'vip',      icon: 'star',            iconActive: 'star.fill',        label: 'VIP' },
+  { name: 'account',  icon: 'person',          iconActive: 'person.fill',      label: 'Cá nhân' },
+  { name: 'settings', icon: 'gearshape',       iconActive: 'gearshape.fill',   label: 'Cài đặt' },
+];
+
+// Ionicons tên tương ứng
+const IONICON_MAP: Record<string, { default: string; active: string }> = {
+  'index':    { default: 'home-outline',     active: 'home' },
+  'apps':     { default: 'grid-outline',     active: 'grid' },
+  'search':   { default: 'search-outline',   active: 'search' },
+  'sign':     { default: 'build-outline',    active: 'build' },
+  'vip':      { default: 'star-outline',     active: 'star' },
+  'account':  { default: 'person-outline',   active: 'person' },
+  'settings': { default: 'settings-outline', active: 'settings' },
+};
+
+function TabIcon({ name, isFocused }: { name: string; isFocused: boolean }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: isFocused ? 1.15 : 1,
+      tension: 120,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, [isFocused]);
+
+  const icons = IONICON_MAP[name] || { default: 'ellipse-outline', active: 'ellipse' };
+  const iconName = isFocused ? icons.active : icons.default;
+  const tabLabel = TAB_CONFIG.find(t => t.name === name)?.label || name;
+  const isLight = COLORS.background === '#F2F2F7';
+
+  return (
+    <Animated.View style={[styles.iconWrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <Ionicons
+        name={iconName as any}
+        size={isFocused ? 22 : 21}
+        color={isFocused ? '#FFFFFF' : (isLight ? '#8E8E93' : 'rgba(255,255,255,0.45)')}
+      />
+      {isFocused && (
+        <Text style={styles.tabLabel}>{tabLabel}</Text>
+      )}
+    </Animated.View>
+  );
+}
 
 function FloatingTabBar({ state, descriptors, navigation }: any) {
   useThemeUpdate();
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const isLight = COLORS.background === '#F2F2F7';
 
   useEffect(() => {
     Animated.spring(slideAnim, {
       toValue: state.index * TAB_WIDTH,
-      tension: 70, // Đàn hồi chuẩn Apple
-      friction: 9,  // Độ mượt cao
+      tension: 80,
+      friction: 10,
       useNativeDriver: true,
     }).start();
   }, [state.index]);
 
+  const pillColors: readonly [string, string] = COLORS.primaryGradient;
+
   return (
     <View style={styles.tabBarContainer}>
-      <View style={[styles.tabBarShadowContainer, SHADOWS.glowDark]}>
-        <BlurView intensity={35} tint="dark" style={styles.blurBackground}>
-          <View style={styles.tabBarElement}>
-            {/* HIỆU ỨNG VIÊN THUỐC TRƯỢT GLOW */}
-            <Animated.View
-              style={[
-                styles.slidingPill,
-                { transform: [{ translateX: slideAnim }] }
-              ]}
-            >
-              <LinearGradient
-                colors={COLORS.primaryGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.gradientPill}
-              />
-            </Animated.View>
+      <View style={[styles.tabBarOuter, isLight ? styles.tabBarOuterLight : styles.tabBarOuterDark]}>
+        <BlurView
+          intensity={isLight ? 60 : 40}
+          tint={isLight ? 'light' : 'dark'}
+          style={styles.blurFill}
+        >
+          {/* Sliding active pill */}
+          <Animated.View
+            style={[
+              styles.slidingPill,
+              { transform: [{ translateX: Animated.add(slideAnim, new Animated.Value(6)) }] }
+            ]}
+          >
+            <LinearGradient
+              colors={pillColors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.pillGradient}
+            />
+          </Animated.View>
 
-            {/* CÁC NÚT TAB */}
+          {/* Tab items */}
+          <View style={styles.tabRow}>
             {state.routes.map((route: any, index: number) => {
-              const { options } = descriptors[route.key];
               const isFocused = state.index === index;
-
               const onPress = () => {
                 const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                if (!isFocused && !event.defaultPrevented) {
-                  navigation.navigate(route.name);
-                }
+                if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
               };
 
-              let iconName = 'ellipse';
-              if (route.name === 'index') iconName = isFocused ? 'calendar' : 'calendar-outline';
-              if (route.name === 'apps') iconName = isFocused ? 'grid' : 'grid-outline';
-              if (route.name === 'search') iconName = isFocused ? 'search' : 'search-outline';
-              if (route.name === 'sign') iconName = isFocused ? 'folder-open' : 'folder-outline';
-              if (route.name === 'vip') iconName = isFocused ? 'star' : 'star-outline';
-              if (route.name === 'account') iconName = isFocused ? 'person' : 'person-outline';
-              if (route.name === 'settings') iconName = isFocused ? 'settings' : 'settings-outline';
-
               return (
-                <TouchableOpacity 
-                  key={route.name} 
-                  accessibilityRole="button" 
-                  onPress={onPress} 
-                  style={styles.tabItem}
-                  activeOpacity={0.7}
+                <TouchableOpacity
+                  key={route.name}
+                  accessibilityRole="button"
+                  onPress={onPress}
+                  style={[styles.tabItem, { width: TAB_WIDTH }]}
+                  activeOpacity={0.75}
                 >
-                  <Ionicons 
-                    name={iconName as any} 
-                    size={22} 
-                    color={isFocused ? '#FFFFFF' : '#8E8E93'} 
-                    style={{ zIndex: 1 }}
-                  />
-                  {isFocused && <View style={styles.activeDot} />}
+                  <TabIcon name={route.name} isFocused={isFocused} />
                 </TouchableOpacity>
               );
             })}
@@ -92,16 +132,19 @@ function FloatingTabBar({ state, descriptors, navigation }: any) {
 }
 
 export default function TabLayout() {
+  useThemeUpdate();
+  const isLight = COLORS.background === '#F2F2F7';
+
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={isLight ? 'dark' : 'light'} />
       <Tabs tabBar={(props) => <FloatingTabBar {...props} />} screenOptions={{ headerShown: false }}>
-        <Tabs.Screen name="index" options={{ title: 'Hôm nay' }} />
-        <Tabs.Screen name="apps" options={{ title: 'Ứng dụng' }} />
-        <Tabs.Screen name="search" options={{ title: 'Tìm kiếm' }} />
-        <Tabs.Screen name="sign" options={{ title: 'Ký app' }} />
-        <Tabs.Screen name="vip" options={{ title: 'Kho VIP' }} />
-        <Tabs.Screen name="account" options={{ title: 'Cá nhân' }} />
+        <Tabs.Screen name="index"    options={{ title: 'Hôm nay' }} />
+        <Tabs.Screen name="apps"     options={{ title: 'Kho App' }} />
+        <Tabs.Screen name="search"   options={{ title: 'Tìm kiếm' }} />
+        <Tabs.Screen name="sign"     options={{ title: 'Ký App' }} />
+        <Tabs.Screen name="vip"      options={{ title: 'Kho VIP' }} />
+        <Tabs.Screen name="account"  options={{ title: 'Cá nhân' }} />
         <Tabs.Screen name="settings" options={{ title: 'Cài đặt' }} />
       </Tabs>
     </>
@@ -111,63 +154,79 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'absolute',
-    bottom: 30, // Đẩy cao hơn mặt đất tí
+    bottom: 24,
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 999
+    zIndex: 999,
   },
-  tabBarShadowContainer: {
+  tabBarOuter: {
     width: TAB_BAR_WIDTH,
-    height: 64,
-    borderRadius: 32,
+    height: 68,
+    borderRadius: 34,
     overflow: 'hidden',
   },
-  blurBackground: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(12, 12, 16, 0.45)', // Giao diện kính tối
-  },
-  tabBarElement: {
-    flexDirection: 'row',
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 5,
+  tabBarOuterDark: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 20,
     borderWidth: 0.8,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 32,
+    borderColor: 'rgba(255,255,255,0.09)',
   },
-  tabItem: {
-    width: TAB_WIDTH,
-    height: 54,
-    justifyContent: 'center',
-    alignItems: 'center',
+  tabBarOuterLight: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 15,
+    borderWidth: 0.8,
+    borderColor: 'rgba(0,0,0,0.07)',
+  },
+  blurFill: {
+    flex: 1,
     position: 'relative',
   },
   slidingPill: {
     position: 'absolute',
-    width: TAB_WIDTH,
-    height: 48,
-    borderRadius: 24,
-    left: 5,
+    top: 9,
+    width: TAB_WIDTH - 4,
+    height: 50,
+    borderRadius: 25,
+    zIndex: 0,
     shadowColor: '#0A84FF',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
-  gradientPill: {
+  pillGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
+    borderRadius: 25,
   },
-  activeDot: {
-    position: 'absolute',
-    bottom: 8,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#FFFFFF',
-    zIndex: 2,
-  }
+  tabRow: {
+    flexDirection: 'row',
+    height: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    zIndex: 1,
+  },
+  tabItem: {
+    height: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+    gap: 1,
+  },
+  tabLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 1,
+    letterSpacing: 0.2,
+  },
 });
