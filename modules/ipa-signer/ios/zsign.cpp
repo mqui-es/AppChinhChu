@@ -3,6 +3,7 @@
 #include "bundle.h"
 #include "timer.h"
 #include "archive.h"
+#include "zsign_openssl.h"
 
 #ifdef _WIN32
 #include "common_win32.h"
