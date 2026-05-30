@@ -9,7 +9,7 @@ import { COLORS, SHADOWS, useThemeUpdate } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 const TAB_BAR_WIDTH = width - 32; // Sát lề hơn, nhìn hiện đại và thoáng hơn
-const TAB_COUNT = 6;
+const TAB_COUNT = 7;
 const TAB_WIDTH = (TAB_BAR_WIDTH - 10) / TAB_COUNT;
 
 function FloatingTabBar({ state, descriptors, navigation }: any) {
@@ -64,6 +64,7 @@ function FloatingTabBar({ state, descriptors, navigation }: any) {
               if (route.name === 'sign') iconName = isFocused ? 'folder-open' : 'folder-outline';
               if (route.name === 'vip') iconName = isFocused ? 'star' : 'star-outline';
               if (route.name === 'account') iconName = isFocused ? 'person' : 'person-outline';
+              if (route.name === 'settings') iconName = isFocused ? 'settings' : 'settings-outline';
 
               return (
                 <TouchableOpacity 
@@ -98,9 +99,10 @@ export default function TabLayout() {
         <Tabs.Screen name="index" options={{ title: 'Hôm nay' }} />
         <Tabs.Screen name="apps" options={{ title: 'Ứng dụng' }} />
         <Tabs.Screen name="search" options={{ title: 'Tìm kiếm' }} />
-        <Tabs.Screen name="sign" options={{ title: 'Thư viện' }} />
+        <Tabs.Screen name="sign" options={{ title: 'Ký app' }} />
         <Tabs.Screen name="vip" options={{ title: 'Kho VIP' }} />
         <Tabs.Screen name="account" options={{ title: 'Cá nhân' }} />
+        <Tabs.Screen name="settings" options={{ title: 'Cài đặt' }} />
       </Tabs>
     </>
   );

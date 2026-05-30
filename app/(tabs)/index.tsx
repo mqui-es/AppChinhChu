@@ -11,8 +11,10 @@ import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/the
 // THẺ VIP THÔNG MINH: Lướt tới đâu lấy ảnh tới đó
 // ==========================================
 const SmartVIPCard = memo(({ item }: { item: AppItem }) => {
+  useThemeUpdate();
   const router = useRouter();
   const [icon, setIcon] = useState(item.iconUrl);
+  const styles = getStyles(COLORS);
 
   useEffect(() => {
     if (icon.includes('ui-avatars')) {
@@ -60,6 +62,7 @@ export default function HomeScreen() {
   const [vipApps, setVipApps] = useState<AppItem[]>([]);
   const [newApps, setNewApps] = useState<AppItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const styles = getStyles(COLORS);
 
   useEffect(() => {
     Promise.all([fetchRegularApps(), fetchVIPApps()]).then(([regular, vip]) => {
@@ -70,9 +73,11 @@ export default function HomeScreen() {
     });
   }, []);
 
+  const isLightMode = COLORS.background === '#F2F2F7';
+
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style={isLightMode ? 'dark' : 'light'} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 140}}>
         
         <View style={styles.header}>
@@ -99,7 +104,7 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.featuredOverlay}>
-                  <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
+                  <BlurView intensity={30} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
                   <View style={styles.featuredOverlayContent}>
                     <View style={styles.featuredTextWrapper}>
                       <Text style={styles.featuredSubtitle}>ĐỀ XUẤT CHO BẠN</Text>
@@ -137,7 +142,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>Mới Cập Nhật</Text>
             </View>
             <View style={[styles.listContainer, SHADOWS.glowCard]}>
-              <BlurView intensity={15} tint="dark" style={StyleSheet.absoluteFill} />
+              <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               <View style={styles.listInside}>
                 {newApps.map((app, index) => (
                   <View key={app.id}>
@@ -163,12 +168,12 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (theme: typeof COLORS) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   header: { paddingTop: 60, paddingHorizontal: 20, marginBottom: 15 },
-  dateText: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700', marginBottom: 5, letterSpacing: 1.5 },
-  largeTitle: { color: COLORS.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  profileBtn: { width: 38, height: 38, borderRadius: 19, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  dateText: { color: theme.textMuted, fontSize: 13, fontWeight: '700', marginBottom: 5, letterSpacing: 1.5 },
+  largeTitle: { color: theme.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
+  profileBtn: { width: 38, height: 38, borderRadius: 19, overflow: 'hidden', borderWidth: 1, borderColor: theme.border },
   profileImg: { width: '100%', height: '100%' },
   
   featuredCard: { 
@@ -177,9 +182,9 @@ const styles = StyleSheet.create({
     borderRadius: SIZES.radiusSquircle, 
     overflow: 'hidden', 
     marginBottom: 30, 
-    backgroundColor: COLORS.surfaceSolid,
+    backgroundColor: theme.surfaceSolid,
     borderWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: theme.border,
   },
   featuredImage: { 
     position: 'absolute',
@@ -198,7 +203,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: theme.border,
   },
   featuredOverlay: { 
     position: 'absolute', 
@@ -207,7 +212,7 @@ const styles = StyleSheet.create({
     right: 0, 
     height: 96, 
     borderTopWidth: 0.8,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: theme.border,
     overflow: 'hidden',
   },
   featuredOverlayContent: {
@@ -222,20 +227,20 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   featuredSubtitle: { 
-    color: COLORS.primaryLight, 
+    color: theme.primaryLight, 
     fontSize: 11, 
     fontWeight: '800', 
     marginBottom: 2, 
     letterSpacing: 1.5,
   },
   featuredTitle: { 
-    color: COLORS.text, 
+    color: theme.text, 
     fontSize: 22, 
     fontWeight: '800', 
     marginBottom: 2,
   },
   featuredDesc: { 
-    color: COLORS.textMuted, 
+    color: theme.textMuted, 
     fontSize: 13, 
   },
   featuredGetButton: {
@@ -257,8 +262,8 @@ const styles = StyleSheet.create({
   },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
-  sectionTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  sectionSeeAll: { color: COLORS.primary, fontSize: 16, fontWeight: '600' },
+  sectionTitle: { fontSize: 22, fontWeight: '800', color: theme.text, letterSpacing: -0.5 },
+  sectionSeeAll: { color: theme.primary, fontSize: 16, fontWeight: '600' },
   
   hCard: { width: 96, marginRight: 16 },
   hIconWrapper: {
@@ -271,9 +276,9 @@ const styles = StyleSheet.create({
     width: 96, 
     height: 96, 
     borderRadius: 22, 
-    backgroundColor: COLORS.surfaceSolid, 
+    backgroundColor: theme.surfaceSolid, 
     borderWidth: 0.8, 
-    borderColor: 'rgba(255,255,255,0.06)' 
+    borderColor: theme.border 
   },
   hVipBadge: {
     position: 'absolute',
@@ -283,7 +288,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#070708',
+    borderColor: theme.background,
   },
   hVipBadgeText: {
     color: '#000000',
@@ -291,27 +296,27 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-  hName: { color: COLORS.text, fontSize: 13, fontWeight: '600', marginTop: 4 },
-  hSub: { color: COLORS.textMuted, fontSize: 11, marginTop: 1 },
+  hName: { color: theme.text, fontSize: 13, fontWeight: '600', marginTop: 4 },
+  hSub: { color: theme.textMuted, fontSize: 11, marginTop: 1 },
 
   listContainer: { 
     marginHorizontal: 20, 
     borderRadius: SIZES.radiusSquircle,
     overflow: 'hidden',
     borderWidth: 0.8,
-    borderColor: COLORS.border,
-    backgroundColor: 'rgba(20, 20, 24, 0.45)',
+    borderColor: theme.border,
+    backgroundColor: theme.surfaceCard,
   },
   listInside: {
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   appRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-  appIconSmall: { width: 56, height: 56, borderRadius: 13, backgroundColor: COLORS.surfaceSolid, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  appIconSmall: { width: 56, height: 56, borderRadius: 13, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
   appInfo: { flex: 1, marginLeft: 14, justifyContent: 'center' },
-  appName: { color: COLORS.text, fontSize: 15, fontWeight: '600', marginBottom: 3 },
-  appSub: { color: COLORS.textMuted, fontSize: 12 },
-  getButton: { backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 15, borderWidth: 0.8, borderColor: 'rgba(255,255,255,0.04)' },
-  getButtonText: { color: COLORS.primary, fontSize: 13, fontWeight: '800' },
-  divider: { height: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.08)', marginLeft: 70 }
+  appName: { color: theme.text, fontSize: 15, fontWeight: '600', marginBottom: 3 },
+  appSub: { color: theme.textMuted, fontSize: 12 },
+  getButton: { backgroundColor: theme.surfaceAccent, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 15, borderWidth: 0.8, borderColor: theme.border },
+  getButtonText: { color: theme.primary, fontSize: 13, fontWeight: '800' },
+  divider: { height: 0.5, backgroundColor: theme.border, marginLeft: 70 }
 });

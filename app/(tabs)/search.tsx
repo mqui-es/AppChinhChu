@@ -35,8 +35,10 @@ const { width } = Dimensions.get('window');
 const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.dev";
 
 export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
+  useThemeUpdate();
   const router = useRouter();
   const [status, setStatus] = useState('CÀI ĐẶT');
+  const styles = getStyles(COLORS);
 
   const handleOneClickInstall = async () => {
     if (status !== 'CÀI ĐẶT' && status !== 'LỖI, THỬ LẠI') return;
@@ -56,7 +58,14 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
         router.push('/sign');
         return;
       }
-      const activeCert = certs[0];
+      
+      // Lấy active certificate ID từ Settings
+      const activeId = await AsyncStorage.getItem('@active_cert_id');
+      let activeCert = certs[0];
+      if (activeId) {
+        const found = certs.find((c: any) => c.id === activeId);
+        if (found) activeCert = found;
+      }
 
       setStatus('Đang tải...');
       const safeName = "app_" + Date.now();
@@ -125,6 +134,7 @@ export default function SearchScreen() {
   const [results, setResults] = useState<AppItem[]>([]);
   const [suggestions, setSuggestions] = useState<AppItem[]>([]);
   const keyboardOffset = useRef(new Animated.Value(110)).current;
+  const styles = getStyles(COLORS);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -166,9 +176,11 @@ export default function SearchScreen() {
     </View>
   );
 
+  const isLightMode = COLORS.background === '#F2F2F7';
+
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style={isLightMode ? 'dark' : 'light'} />
       {query.length > 0 ? (
         <View style={{flex: 1}}>
           <View style={styles.headerSmall}><Text style={styles.smallTitle}>Kết quả tìm kiếm</Text></View>
@@ -180,7 +192,7 @@ export default function SearchScreen() {
           
           <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Được Đề Xuất</Text></View>
           <View style={[styles.cardListWrapper, SHADOWS.glowCard]}>
-            <BlurView intensity={15} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
             <View style={styles.cardListContent}>
               {suggestions.map((item, index) => (
                 <View key={item.id}>
@@ -219,9 +231,9 @@ export default function SearchScreen() {
       {/* SEARCH BAR CHỒNG LÊN */}
       <Animated.View style={[styles.floatingSearchContainer, { bottom: keyboardOffset }]}>
         <View style={[styles.floatingSearchBarShadow, SHADOWS.glowDark]}>
-          <BlurView intensity={35} tint="dark" style={styles.floatingSearchBar}>
+          <BlurView intensity={25} tint={isLightMode ? 'light' : 'dark'} style={styles.floatingSearchBar}>
             <Ionicons name="search" size={20} color="#8E8E93" style={{marginLeft: 5, marginRight: 10}} />
-            <TextInput style={styles.searchInput} placeholder="Tìm app, game..." placeholderTextColor="#8E8E93" value={query} onChangeText={setQuery} autoCapitalize="none" clearButtonMode="while-editing" />
+            <TextInput style={[styles.searchInput, { color: COLORS.text }]} placeholder="Tìm app, game..." placeholderTextColor="#8E8E93" value={query} onChangeText={setQuery} autoCapitalize="none" clearButtonMode="while-editing" />
           </BlurView>
         </View>
       </Animated.View>
@@ -229,23 +241,23 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (theme: typeof COLORS) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   scrollContent: { paddingBottom: 200 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 60, paddingHorizontal: 20, marginBottom: 20 },
-  largeTitle: { color: COLORS.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  headerSmall: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: COLORS.border },
-  smallTitle: { color: COLORS.text, fontSize: 22, fontWeight: '800' },
+  largeTitle: { color: theme.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
+  headerSmall: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: theme.border },
+  smallTitle: { color: theme.text, fontSize: 22, fontWeight: '800' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
-  sectionTitle: { color: COLORS.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  sectionTitle: { color: theme.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
   
   cardListWrapper: { 
     marginHorizontal: 16, 
     borderRadius: SIZES.radiusSquircle,
     overflow: 'hidden',
     borderWidth: 0.8,
-    borderColor: COLORS.border,
-    backgroundColor: 'rgba(20, 20, 24, 0.45)',
+    borderColor: theme.border,
+    backgroundColor: theme.surfaceCard,
   },
   cardListContent: {
     paddingHorizontal: 12,
@@ -255,28 +267,28 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   appRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 },
-  appIconSmall: { width: 58, height: 58, borderRadius: 13, backgroundColor: COLORS.surfaceSolid, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  appIconSmall: { width: 58, height: 58, borderRadius: 13, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
   appInfo: { flex: 1, marginLeft: 14, justifyContent: 'center' },
-  appName: { color: COLORS.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  appSub: { color: COLORS.textMuted, fontSize: 12 },
+  appName: { color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  appSub: { color: theme.textMuted, fontSize: 12 },
   
   getButton: { 
-    backgroundColor: 'rgba(10, 132, 255, 0.1)', 
+    backgroundColor: theme.surfaceAccent, 
     paddingHorizontal: 16, 
     paddingVertical: 7, 
     borderRadius: SIZES.radiusPill, 
     minWidth: 80, 
     alignItems: 'center',
     borderWidth: 0.8,
-    borderColor: 'rgba(10, 132, 255, 0.25)',
+    borderColor: theme.border,
   },
-  getButtonText: { color: COLORS.primary, fontSize: 13, fontWeight: '800' },
-  divider: { height: 0.5, backgroundColor: 'rgba(255,255,255,0.08)', marginLeft: 72 },
-  emptyText: { color: COLORS.textMuted, textAlign: 'center', marginTop: 40, fontSize: 16 },
+  getButtonText: { color: theme.primary, fontSize: 13, fontWeight: '800' },
+  divider: { height: 0.5, backgroundColor: theme.border, marginLeft: 72 },
+  emptyText: { color: theme.textMuted, textAlign: 'center', marginTop: 40, fontSize: 16 },
   
   gridContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, justifyContent: 'space-between' },
   discoverCard: { width: (width - 44) / 2, height: 110, borderRadius: SIZES.radiusCard, padding: 18, marginBottom: 15, overflow: 'hidden', justifyContent: 'flex-end', position: 'relative' },
-  cardTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 3 },
+  cardTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 3 },
   cardIconBg: { position: 'absolute', top: -8, right: -8, transform: [{rotate: '15deg'}] },
   
   floatingSearchContainer: { position: 'absolute', width: '100%', alignItems: 'center', paddingHorizontal: 16, zIndex: 100 },
@@ -287,13 +299,13 @@ const styles = StyleSheet.create({
   },
   floatingSearchBar: { 
     flexDirection: 'row', 
-    backgroundColor: 'rgba(20, 20, 24, 0.65)', 
+    backgroundColor: theme.surfaceCard, 
     width: '100%', 
     height: 54, 
     alignItems: 'center', 
     paddingHorizontal: 16, 
     borderWidth: 0.8, 
-    borderColor: 'rgba(255, 255, 255, 0.12)' 
+    borderColor: theme.border 
   },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 16, height: '100%' },
+  searchInput: { flex: 1, fontSize: 16, height: '100%' },
 });

@@ -17,10 +17,10 @@ public class IpaSignerModule: Module {
 
     AsyncFunction("signAppOffline") { (ipaPath: String, p12Path: String, provPath: String, password: String, promise: Promise) in
       
-      // Xóa tiền tố "file://" nếu có để lấy đường dẫn thật của hệ thống
-      let cleanIpaPath = ipaPath.replacingOccurrences(of: "file://", with: "")
-      let cleanP12Path = p12Path.replacingOccurrences(of: "file://", with: "")
-      let cleanProvPath = provPath.replacingOccurrences(of: "file://", with: "")
+      // Xóa tiền tố "file://" nếu có để lấy đường dẫn thật của hệ thống và giải mã phần trăm URL (%20,...)
+      let cleanIpaPath = ipaPath.replacingOccurrences(of: "file://", with: "").removingPercentEncoding ?? ipaPath.replacingOccurrences(of: "file://", with: "")
+      let cleanP12Path = p12Path.replacingOccurrences(of: "file://", with: "").removingPercentEncoding ?? p12Path.replacingOccurrences(of: "file://", with: "")
+      let cleanProvPath = provPath.replacingOccurrences(of: "file://", with: "").removingPercentEncoding ?? provPath.replacingOccurrences(of: "file://", with: "")
 
       // Tạo đường dẫn lưu File IPA mới sau khi Ký xong
       let fileManager = FileManager.default

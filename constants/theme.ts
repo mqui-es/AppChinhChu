@@ -118,7 +118,7 @@ export const THEME_STYLES = {
 };
 
 // Object màu hiện tại (Sẽ bị ghi đè in-place khi đổi giao diện)
-export const COLORS = { ...THEME_STYLES.obsidian };
+export const COLORS = { ...THEME_STYLES.light };
 
 // TỪ ĐIỂN DỊCH (TRANSLATIONS)
 export const TRANSLATIONS = {
@@ -191,7 +191,7 @@ export const loadTheme = async () => {
     if (style && THEME_STYLES[style]) {
       Object.assign(COLORS, THEME_STYLES[style]);
     } else {
-      Object.assign(COLORS, THEME_STYLES.obsidian);
+      Object.assign(COLORS, THEME_STYLES.light);
     }
   } catch (e) {
     console.error("Lỗi loadTheme:", e);

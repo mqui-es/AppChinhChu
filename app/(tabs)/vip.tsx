@@ -13,7 +13,9 @@ import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 const SmartVIPRow = memo(({ item, index, onAccessDenied }: { item: AppItem; index: number; onAccessDenied: () => void }) => {
+  useThemeUpdate();
   const [icon, setIcon] = useState(item.iconUrl);
+  const styles = getStyles(COLORS);
   
   useEffect(() => {
     if (icon.includes('ui-avatars')) {
@@ -42,7 +44,7 @@ const SmartVIPRow = memo(({ item, index, onAccessDenied }: { item: AppItem; inde
             colors={getRankColors(index)}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.rankBadge, !isTopRank && { borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }]}
+            style={[styles.rankBadge, !isTopRank && { borderWidth: 1, borderColor: COLORS.border }]}
           >
             <Text style={[styles.rankNumber, { color: isTopRank ? '#0A0A0C' : '#8E8E93' }]}>{index + 1}</Text>
           </LinearGradient>
@@ -68,6 +70,7 @@ export default function VIPScreen() {
   const [uiCat, setUiCat] = useState('Tất cả');
   const [listCat, setListCat] = useState('Tất cả');
   const [isUserVip, setIsUserVip] = useState(false);
+  const styles = getStyles(COLORS);
 
   const measures = useRef<Record<string, { x: number, width: number }>>({}).current;
   const slideX = useRef(new Animated.Value(0)).current;
@@ -129,9 +132,11 @@ export default function VIPScreen() {
     ? apps 
     : apps.filter(a => a.category && a.category.trim().toLowerCase() === listCat.trim().toLowerCase());
 
+  const isLightMode = COLORS.background === '#F2F2F7';
+
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style={isLightMode ? 'dark' : 'light'} />
       <View style={styles.header}>
         <View style={styles.titleWrapper}>
           <Text style={styles.largeTitle}>Kho VIP</Text>
@@ -194,20 +199,20 @@ export default function VIPScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (theme: typeof COLORS) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   scrollContent: { paddingTop: 10, paddingBottom: 140 },
   header: { paddingTop: 60, paddingHorizontal: 20, marginBottom: 5 },
   titleWrapper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  largeTitle: { color: COLORS.gold, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  desc: { color: COLORS.textMuted, fontSize: 14, marginTop: 4 },
+  largeTitle: { color: theme.gold, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
+  desc: { color: theme.textMuted, fontSize: 14, marginTop: 4 },
   
-  categoryContainer: { borderBottomWidth: 0.8, borderBottomColor: COLORS.border, paddingBottom: 12, marginBottom: 5, marginTop: 15 },
+  categoryContainer: { borderBottomWidth: 0.8, borderBottomColor: theme.border, paddingBottom: 12, marginBottom: 5, marginTop: 15 },
   catScroll: { paddingHorizontal: 20 },
   slidingPill: { position: 'absolute', top: 0, bottom: 0, borderRadius: 20, overflow: 'hidden' },
   catBtn: { paddingHorizontal: 20, paddingVertical: 10, zIndex: 2, justifyContent: 'center' },
-  catText: { color: COLORS.textMuted, fontSize: 16, fontWeight: '600' },
-  catTextActive: { color: COLORS.textDark, fontWeight: '700' }, 
+  catText: { color: theme.textMuted, fontSize: 16, fontWeight: '600' },
+  catTextActive: { color: '#000000', fontWeight: '700' }, 
   
   loadingContainer: { alignItems: 'center', marginTop: 100 },
   rowWrapper: {
@@ -225,9 +230,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rankNumber: { fontSize: 14, fontWeight: '800' },
-  appIconSmall: { width: 58, height: 58, borderRadius: 13, backgroundColor: COLORS.surfaceSolid, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  appIconSmall: { width: 58, height: 58, borderRadius: 13, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
   appInfo: { flex: 1, marginLeft: 14, justifyContent: 'center' },
-  appName: { color: COLORS.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  appSub: { color: COLORS.textMuted, fontSize: 12 },
-  divider: { height: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.08)', marginLeft: 114 }
+  appName: { color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  appSub: { color: theme.textMuted, fontSize: 12 },
+  divider: { height: 0.5, backgroundColor: theme.border, marginLeft: 114 }
 });

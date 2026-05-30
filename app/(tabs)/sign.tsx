@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import JSZip from 'jszip'; 
 
@@ -122,6 +122,7 @@ const parseMobileProvisionData = (base64Data: string) => {
 
 export default function SignScreen() {
   useThemeUpdate();
+  const router = useRouter();
   const [localFiles, setLocalFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ipa' | 'installed'>('ipa');
@@ -181,14 +182,9 @@ export default function SignScreen() {
     Alert.alert("Xóa File", `Xóa file ${name}?`, [ { text: "Hủy", style: "cancel" }, { text: "Xóa", style: "destructive", onPress: async () => { await FileSystem.deleteAsync(uri); loadDownloadedFiles(); } } ]);
   };
 
-  // ==============================================
-  // 2. GIẢI QUYẾT TRIỆT ĐỂ LỖI ĐƠ NÚT TẢI FILE
-  // ==============================================
+  // Import IPA
   const importIpaFile = () => {
-    // PHẢI đóng Modal Menu TRƯỚC khi gọi DocumentPicker
     setMenuVisible(false);
-    
-    // Chờ 0.5s để iOS dọn dẹp sạch sẽ hiệu ứng đóng Modal, rồi mới mở Tệp
     setTimeout(async () => {
       try {
         const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
@@ -213,25 +209,34 @@ export default function SignScreen() {
     }, 500); 
   };
 
+  // Load saved certs and select active cert
   const loadSavedCerts = async () => {
     try {
       const certsJson = await AsyncStorage.getItem('@saved_certs');
-      if (certsJson) setSavedCerts(JSON.parse(certsJson));
+      if (certsJson) {
+        const certs = JSON.parse(certsJson) as CertItem[];
+        setSavedCerts(certs);
+        
+        const activeId = await AsyncStorage.getItem('@active_cert_id');
+        if (activeId) {
+          const active = certs.find(c => c.id === activeId);
+          if (active) {
+            setSelectedCert(active);
+            return;
+          }
+        }
+        if (certs.length > 0) {
+          setSelectedCert(certs[0]);
+        }
+      }
     } catch (error) {}
   };
 
-  // ==============================================
-  // 3. GIẢI QUYẾT TRIỆT ĐỂ LỖI ĐƠ NÚT CHỨNG CHỈ
-  // ==============================================
   const importCertFromZip = () => {
-    // PHẢI đóng Modal Sign TRƯỚC khi gọi DocumentPicker
     setSignModalVisible(false);
-    
     setTimeout(async () => {
       try {
         const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-        
-        // Nếu người dùng ấn Hủy (Cancel), thì mở lại bảng Sign cho họ
         if (result.canceled || !result.assets || result.assets.length === 0) {
           setSignModalVisible(true);
           return;
@@ -245,7 +250,7 @@ export default function SignScreen() {
         }
 
         setIsUnzipping(true);
-        setSignModalVisible(true); // Bật lại bảng Sign để hiện loading xoay xoay
+        setSignModalVisible(true);
         
         const b64Data = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
         const zip = await JSZip.loadAsync(b64Data, { base64: true });
@@ -268,9 +273,8 @@ export default function SignScreen() {
         setTempZipData({ p12Data, provData, p12Name, provName, zipName: file.name.replace('.zip', '') });
         setCertPassword('');
         setIsUnzipping(false);
-        setSignModalVisible(false); // Tắt bảng Sign để chuyển sang bảng Nhập Pass
+        setSignModalVisible(false);
         
-        // Chờ bảng Sign tắt hẳn rồi mới mở bảng Pass
         setTimeout(() => setPwdModalVisible(true), 500);
 
       } catch (error: any) {
@@ -316,10 +320,13 @@ export default function SignScreen() {
       
       setSavedCerts(updatedCerts);
       await AsyncStorage.setItem('@saved_certs', JSON.stringify(updatedCerts));
+      
+      // Đồng thời đặt làm active certificate
+      await AsyncStorage.setItem('@active_cert_id', id);
       setSelectedCert(newCert); 
       
       setTimeout(() => {
-        setSignModalVisible(true); // Mở lại bảng Sign sau khi lưu xong pass
+        setSignModalVisible(true);
         Alert.alert("Thành công", "Chứng chỉ đã được nạp!");
       }, 500);
       
@@ -335,7 +342,15 @@ export default function SignScreen() {
           const updated = savedCerts.filter(c => c.id !== id);
           setSavedCerts(updated);
           await AsyncStorage.setItem('@saved_certs', JSON.stringify(updated));
-          if (selectedCert?.id === id) setSelectedCert(null);
+          if (selectedCert?.id === id) {
+            const nextActive = updated.length > 0 ? updated[0] : null;
+            setSelectedCert(nextActive);
+            if (nextActive) {
+              await AsyncStorage.setItem('@active_cert_id', nextActive.id);
+            } else {
+              await AsyncStorage.removeItem('@active_cert_id');
+            }
+          }
       }}
     ]);
   };
@@ -367,40 +382,45 @@ export default function SignScreen() {
   };
 
   const renderItem = ({ item }: { item: LocalFile }) => (
-    <View style={styles.fileCard}>
-      <View style={styles.iconBox}><FileArchive color="#0A84FF" size={28} /></View>
-      <View style={styles.fileInfo}><Text style={styles.fileName} numberOfLines={2}>{item.name}</Text><Text style={styles.fileSize}>{item.size} • Đã lưu</Text></View>
-      <View style={styles.actionGroup}>
+    <View style={[styles.fileCard, { backgroundColor: COLORS.surfaceCard, borderColor: COLORS.border }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.iconBox, { backgroundColor: COLORS.surfaceAccent }]}><FileArchive color={COLORS.primary} size={28} /></View>
+        <View style={styles.fileInfo}>
+          <Text style={[styles.fileName, { color: COLORS.text }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={[styles.fileSize, { color: COLORS.textMuted }]}>{item.size} • Đã lưu</Text>
+        </View>
+      </View>
+      <View style={[styles.actionGroup, { borderColor: COLORS.border }]}>
         {activeTab === 'ipa' && (
           <TouchableOpacity style={[styles.iconBtn, {backgroundColor: 'rgba(50, 215, 75, 0.15)', borderColor: 'rgba(50, 215, 75, 0.3)', borderWidth: 1}]} onPress={() => { setSelectedIpa(item); setSignModalVisible(true); }}>
             <Wrench color="#32D74B" size={20} />
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.iconBtn} onPress={() => handleShare(item.uri)}><Share color="#FFF" size={20} /></TouchableOpacity>
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: COLORS.surface }]} onPress={() => handleShare(item.uri)}><Share color={COLORS.text} size={20} /></TouchableOpacity>
         <TouchableOpacity style={[styles.iconBtn, {backgroundColor: 'rgba(255, 69, 58, 0.15)'}]} onPress={() => handleDelete(item.uri, item.name)}><Trash2 color="#FF453A" size={20} /></TouchableOpacity>
       </View>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: COLORS.background }]}>
+      <StatusBar style={COLORS.background === '#F2F2F7' ? 'dark' : 'light'} />
+      <View style={[styles.header, { borderColor: COLORS.border }]}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-          <Text style={styles.largeTitle}>Quản Lý Ký App <Wrench color="#0A84FF" size={26} strokeWidth={2.5} /></Text>
+          <Text style={[styles.largeTitle, { color: COLORS.text }]}>Quản Lý Ký App <Wrench color={COLORS.primary} size={26} strokeWidth={2.5} /></Text>
           <TouchableOpacity style={{padding: 5}} onPress={() => setMenuVisible(true)}>
-            <MoreVertical color="#FFF" size={28} />
+            <MoreVertical color={COLORS.text} size={28} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.tabContainer}>
-          <TouchableOpacity style={[styles.tab, activeTab === 'ipa' && styles.tabActive]} onPress={() => setActiveTab('ipa')}><Text style={[styles.tabText, activeTab === 'ipa' && styles.tabTextActive]}>File IPA Gốc</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, activeTab === 'installed' && styles.tabActive]} onPress={() => setActiveTab('installed')}><Text style={[styles.tabText, activeTab === 'installed' && styles.tabTextActive]}>App Đã Ký</Text></TouchableOpacity>
+        <View style={[styles.tabContainer, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
+          <TouchableOpacity style={[styles.tab, activeTab === 'ipa' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('ipa')}><Text style={[styles.tabText, activeTab === 'ipa' && styles.tabTextActive]}>File IPA Gốc</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, activeTab === 'installed' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('installed')}><Text style={[styles.tabText, activeTab === 'installed' && styles.tabTextActive]}>App Đã Ký</Text></TouchableOpacity>
         </View>
       </View>
 
-      {loading ? ( <ActivityIndicator size="large" color="#0A84FF" style={{marginTop: 50}} /> ) : localFiles.length === 0 ? (
-          <View style={styles.centerBox}><FolderOpen color="#333" size={64} strokeWidth={1.5} /><Text style={styles.emptyText}>Kho lưu trữ trống</Text></View>
+      {loading ? ( <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}} /> ) : localFiles.length === 0 ? (
+          <View style={styles.centerBox}><FolderOpen color={COLORS.textMuted} size={64} strokeWidth={1.5} /><Text style={[styles.emptyText, { color: COLORS.text }]}>Kho lưu trữ trống</Text></View>
       ) : (
           <FlatList data={localFiles} keyExtractor={(item) => item.uri} renderItem={renderItem} contentContainerStyle={styles.listContent} /> 
       )}
@@ -408,15 +428,15 @@ export default function SignScreen() {
       {/* MODAL MENU 3 CHẤM */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
-          <View style={styles.menuBox}>
+          <View style={[styles.menuBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
             <TouchableOpacity style={styles.menuItem} onPress={importIpaFile}>
-              <PlusCircle color="#0A84FF" size={22} />
-              <Text style={styles.menuText}>Thêm File IPA</Text>
+              <PlusCircle color={COLORS.primary} size={22} />
+              <Text style={[styles.menuText, { color: COLORS.text }]}>Thêm File IPA</Text>
             </TouchableOpacity>
-            <View style={{height: 1, backgroundColor: '#333'}} />
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setSelectedIpa(null); setTimeout(() => setSignModalVisible(true), 300); }}>
+            <View style={{height: 1, backgroundColor: COLORS.border}} />
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/settings'); }}>
               <FileKey color="#FFD700" size={22} />
-              <Text style={styles.menuText}>Quản Lý Chứng Chỉ</Text>
+              <Text style={[styles.menuText, { color: COLORS.text }]}>Quản Lý Chứng Chỉ</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -425,46 +445,46 @@ export default function SignScreen() {
       {/* MODAL KÝ APP & CHỨNG CHỈ */}
       <Modal visible={signModalVisible} transparent animationType="slide">
         <View style={styles.modalBg}>
-          <View style={styles.modalBox}>
-            <TouchableOpacity style={styles.closeModalBtn} onPress={() => !isSigning && setSignModalVisible(false)}><X color="#888" size={24} /></TouchableOpacity>
+          <View style={[styles.modalBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
+            <TouchableOpacity style={[styles.closeModalBtn, { backgroundColor: COLORS.surface }]} onPress={() => !isSigning && setSignModalVisible(false)}><X color="#888" size={24} /></TouchableOpacity>
             
-            <Text style={styles.modalTitle}>{selectedIpa ? 'CHỌN CHỨNG CHỈ' : 'KHO CHỨNG CHỈ CỦA BẠN'}</Text>
-            {selectedIpa && <Text style={styles.modalSub} numberOfLines={1}>File IPA: {selectedIpa.name}</Text>}
+            <Text style={[styles.modalTitle, { color: COLORS.text }]}>{selectedIpa ? 'CHỌN CHỨNG CHỈ' : 'KHO CHỨNG CHỈ CỦA BẠN'}</Text>
+            {selectedIpa && <Text style={[styles.modalSub, { color: COLORS.primary }]} numberOfLines={1}>File IPA: {selectedIpa.name}</Text>}
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 20, paddingTop: 10}}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 20, paddingTop: 10}} style={{ width: '100%' }}>
               
               <TouchableOpacity style={styles.addCertBtn} onPress={importCertFromZip} disabled={isUnzipping}>
-                 {isUnzipping ? <ActivityIndicator color="#0A84FF" /> : <PlusCircle color="#0A84FF" size={24} />}
-                 <Text style={styles.addCertText}>{isUnzipping ? 'Đang tải Tệp...' : 'Nhập tệp Chứng chỉ (.zip)'}</Text>
+                 {isUnzipping ? <ActivityIndicator color={COLORS.primary} /> : <PlusCircle color={COLORS.primary} size={24} />}
+                 <Text style={[styles.addCertText, { color: COLORS.primary }]}>{isUnzipping ? 'Đang tải Tệp...' : 'Nhập tệp Chứng chỉ (.zip)'}</Text>
               </TouchableOpacity>
 
-              {savedCerts.length === 0 && <Text style={{color: '#555', textAlign: 'center', marginTop: 20}}>Chưa có chứng chỉ nào được lưu.</Text>}
+              {savedCerts.length === 0 && <Text style={{color: COLORS.textMuted, textAlign: 'center', marginTop: 20}}>Chưa có chứng chỉ nào được lưu.</Text>}
               
               {savedCerts.map((cert) => {
                 const isSelected = selectedCert?.id === cert.id;
                 return (
-                  <TouchableOpacity key={cert.id} style={[styles.certCard, isSelected && styles.certCardActive]} onPress={() => setSelectedCert(cert)}>
+                  <TouchableOpacity key={cert.id} style={[styles.certCard, { backgroundColor: COLORS.surfaceCard, borderColor: isSelected ? COLORS.success : COLORS.border }]} onPress={() => setSelectedCert(cert)}>
                     <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-                       {isSelected ? <CheckCircle2 color="#32D74B" size={24} style={{marginRight: 15}}/> : <FileKey color="#555" size={24} style={{marginRight: 15}}/>}
+                       {isSelected ? <CheckCircle2 color={COLORS.success} size={24} style={{marginRight: 15}}/> : <FileKey color={COLORS.textMuted} size={24} style={{marginRight: 15}}/>}
                        <View style={{flex: 1}}>
-                          <Text style={[styles.certName, isSelected && {color: '#32D74B'}]}>{cert.profileName || cert.name}</Text>
-                          <Text style={styles.certSub} numberOfLines={1}>Doanh nghiệp: {cert.teamName || 'Không rõ'} ({cert.teamId || 'N/A'})</Text>
-                          <Text style={[styles.certSub, cert.isExpired && {color: '#FF453A'}]} numberOfLines={1}>Hết hạn: {cert.expirationDate || 'Không rõ'} {cert.isExpired ? '(Đã hết hạn)' : ''}</Text>
+                          <Text style={[styles.certName, { color: isSelected ? COLORS.success : COLORS.text }]}>{cert.profileName || cert.name}</Text>
+                          <Text style={[styles.certSub, { color: COLORS.textMuted }]} numberOfLines={1}>Doanh nghiệp: {cert.teamName || 'Không rõ'} ({cert.teamId || 'N/A'})</Text>
+                          <Text style={[styles.certSub, cert.isExpired ? {color: COLORS.danger} : {color: COLORS.textMuted}]} numberOfLines={1}>Hết hạn: {cert.expirationDate || 'Không rõ'} {cert.isExpired ? '(Đã hết hạn)' : ''}</Text>
                        </View>
                     </View>
-                    <TouchableOpacity style={{padding: 10}} onPress={() => deleteCert(cert.id)}><Trash2 color="#FF453A" size={18}/></TouchableOpacity>
+                    <TouchableOpacity style={{padding: 10}} onPress={() => deleteCert(cert.id)}><Trash2 color={COLORS.danger} size={18}/></TouchableOpacity>
                   </TouchableOpacity>
                 )
               })}
             </ScrollView>
 
             {selectedIpa && (
-              <View style={{paddingTop: 15, borderTopWidth: 1, borderColor: '#222'}}>
-                <TouchableOpacity style={[styles.signBtn, (!selectedCert || isSigning) && {opacity: 0.5}]} onPress={handleStartSign} disabled={!selectedCert || isSigning}>
+              <View style={{paddingTop: 15, borderTopWidth: 1, borderColor: COLORS.border, width: '100%'}}>
+                <TouchableOpacity style={[styles.signBtn, { backgroundColor: COLORS.primary }, (!selectedCert || isSigning) && {opacity: 0.5}]} onPress={handleStartSign} disabled={!selectedCert || isSigning}>
                   {isSigning ? (
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}><ActivityIndicator color="#FFF" style={{marginRight: 10}} /><Text style={styles.signBtnText}>ĐANG ÉP XUNG LÕI IPA...</Text></View>
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}><ActivityIndicator color={COLORS.textDark} style={{marginRight: 10}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>ĐANG ÉP XUNG LÕI IPA...</Text></View>
                   ) : (
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}><Rocket color="#FFF" size={20} style={{marginRight: 8}} /><Text style={styles.signBtnText}>CHẠM ĐỂ KÝ NGAY</Text></View>
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}><Rocket color={COLORS.textDark} size={20} style={{marginRight: 8}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>CHẠM ĐỂ KÝ NGAY</Text></View>
                   )}
                 </TouchableOpacity>
               </View>
@@ -476,14 +496,14 @@ export default function SignScreen() {
       {/* MODAL MẬT KHẨU */}
       <Modal visible={pwdModalVisible} transparent animationType="fade">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBgCentered}>
-          <View style={styles.pwdBox}>
+          <View style={[styles.pwdBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
              <ShieldCheck color="#FFD700" size={50} style={{marginBottom: 15}}/>
-             <Text style={styles.pwdTitle}>BẢO MẬT CHỨNG CHỈ</Text>
-             <Text style={styles.pwdSub}>Nhập mật khẩu cho tệp {tempZipData?.zipName}</Text>
-             <TextInput style={styles.pwdInput} placeholder="Mật khẩu file P12..." placeholderTextColor="#555" secureTextEntry value={certPassword} onChangeText={setCertPassword} autoFocus />
+             <Text style={[styles.pwdTitle, { color: COLORS.text }]}>BẢO MẬT CHỨNG CHỈ</Text>
+             <Text style={[styles.pwdSub, { color: COLORS.textMuted }]}>Nhập mật khẩu cho tệp {tempZipData?.zipName}</Text>
+             <TextInput style={[styles.pwdInput, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]} placeholder="Mật khẩu file P12..." placeholderTextColor="#555" secureTextEntry value={certPassword} onChangeText={setCertPassword} autoFocus />
              <View style={{flexDirection: 'row', gap: 10, marginTop: 20}}>
                <TouchableOpacity style={styles.pwdBtnCancel} onPress={() => { setPwdModalVisible(false); setTimeout(() => setSignModalVisible(true), 500); }}><Text style={{color: '#FFF', fontWeight: 'bold'}}>HỦY BỎ</Text></TouchableOpacity>
-               <TouchableOpacity style={styles.pwdBtnSave} onPress={saveCertToStorage}><Text style={{color: '#000', fontWeight: '900'}}>LƯU VÀO KHO</Text></TouchableOpacity>
+               <TouchableOpacity style={[styles.pwdBtnSave, { backgroundColor: COLORS.primary }]} onPress={saveCertToStorage}><Text style={{color: COLORS.textDark, fontWeight: '900'}}>LƯU VÀO KHO</Text></TouchableOpacity>
              </View>
           </View>
         </KeyboardAvoidingView>
@@ -493,47 +513,47 @@ export default function SignScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.5, borderColor: '#333' },
-  largeTitle: { color: '#FFFFFF', fontSize: 34, fontWeight: '700' },
-  tabContainer: { flexDirection: 'row', backgroundColor: '#1C1C1E', borderRadius: 12, padding: 4, borderWidth: 1, borderColor: '#333' },
+  container: { flex: 1 },
+  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.5 },
+  largeTitle: { fontSize: 34, fontWeight: '700' },
+  tabContainer: { flexDirection: 'row', borderRadius: 12, padding: 4, borderWidth: 1 },
   tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabActive: { backgroundColor: '#333', shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  tabActive: { shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
   tabText: { color: '#8E8E93', fontSize: 14, fontWeight: '700' },
   tabTextActive: { color: '#FFFFFF' },
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
-  emptyText: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', marginTop: 15 },
+  emptyText: { fontSize: 20, fontWeight: '600', marginTop: 15 },
   emptySubText: { color: '#8E8E93', fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
   listContent: { paddingHorizontal: 20, paddingTop: 15, paddingBottom: 120 }, 
-  fileCard: { flexDirection: 'column', backgroundColor: '#111', padding: 15, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: '#222' },
-  iconBox: { width: 44, height: 44, backgroundColor: 'rgba(10, 132, 255, 0.1)', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  fileCard: { flexDirection: 'column', padding: 15, borderRadius: 20, marginBottom: 15, borderWidth: 1 },
+  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   fileInfo: { flex: 1, marginLeft: 15 },
-  fileName: { color: '#FFF', fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  fileSize: { color: '#8E8E93', fontSize: 13 },
-  actionGroup: { flexDirection: 'row', gap: 10, marginTop: 15, justifyContent: 'flex-end', paddingTop: 15, borderTopWidth: 0.5, borderColor: '#333' },
-  iconBtn: { width: 40, height: 40, backgroundColor: '#222', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  fileName: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  fileSize: { fontSize: 13 },
+  actionGroup: { flexDirection: 'row', gap: 10, marginTop: 15, justifyContent: 'flex-end', paddingTop: 15, borderTopWidth: 0.5 },
+  iconBtn: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-  modalBox: { backgroundColor: '#111', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, paddingBottom: 40, borderWidth: 1, borderColor: '#222', height: '80%' },
-  closeModalBtn: { position: 'absolute', top: 20, right: 20, zIndex: 10, padding: 5, backgroundColor: '#222', borderRadius: 20 },
-  modalTitle: { color: '#FFF', fontSize: 20, fontWeight: '900', letterSpacing: 1, marginBottom: 5 },
-  modalSub: { color: '#0A84FF', fontSize: 14, fontWeight: '600', marginBottom: 20, paddingRight: 30 },
-  addCertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,132,255,0.1)', padding: 18, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(10,132,255,0.3)', borderStyle: 'dashed', marginBottom: 20 },
-  addCertText: { color: '#0A84FF', fontSize: 15, fontWeight: 'bold', marginLeft: 10 },
-  certCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1E', padding: 15, borderRadius: 16, borderWidth: 1, borderColor: '#333', marginBottom: 12 },
-  certCardActive: { borderColor: '#32D74B', backgroundColor: 'rgba(50,215,75,0.05)' },
-  certName: { color: '#FFF', fontSize: 16, fontWeight: '700', marginBottom: 2 },
-  certSub: { color: '#888', fontSize: 12 },
-  signBtn: { backgroundColor: '#0A84FF', height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  signBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 1 },
+  modalBox: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 25, paddingBottom: 40, borderWidth: 1, height: '80%', alignItems: 'center' },
+  closeModalBtn: { position: 'absolute', top: 20, right: 20, zIndex: 10, padding: 5, borderRadius: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 1, marginBottom: 5 },
+  modalSub: { fontSize: 14, fontWeight: '600', marginBottom: 20, paddingRight: 30 },
+  addCertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,132,255,0.1)', padding: 18, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(10,132,255,0.3)', borderStyle: 'dashed', marginBottom: 20, width: '100%' },
+  addCertText: { fontSize: 15, fontWeight: 'bold', marginLeft: 10 },
+  certCard: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 16, borderWidth: 1, marginBottom: 12, width: '100%', justifyContent: 'space-between' },
+  certCardActive: { borderColor: '#32D74B' },
+  certName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
+  certSub: { fontSize: 12 },
+  signBtn: { height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center', width: '100%' },
+  signBtnText: { fontSize: 16, fontWeight: '800', letterSpacing: 1 },
   modalBgCentered: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  pwdBox: { width: '100%', backgroundColor: '#1C1C1E', padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 1, borderColor: '#333' },
-  pwdTitle: { color: '#FFF', fontSize: 18, fontWeight: '900', marginBottom: 5 },
-  pwdSub: { color: '#888', fontSize: 13, marginBottom: 20, textAlign: 'center' },
-  pwdInput: { backgroundColor: '#000', width: '100%', height: 55, borderRadius: 12, paddingHorizontal: 15, color: '#FFF', fontSize: 16, borderWidth: 1, borderColor: '#444', textAlign: 'center', fontWeight: 'bold' },
+  pwdBox: { width: '100%', padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
+  pwdTitle: { fontSize: 18, fontWeight: '900', marginBottom: 5 },
+  pwdSub: { fontSize: 13, marginBottom: 20, textAlign: 'center' },
+  pwdInput: { width: '100%', height: 55, borderRadius: 12, paddingHorizontal: 15, fontSize: 16, borderWidth: 1, textAlign: 'center', fontWeight: 'bold' },
   pwdBtnCancel: { flex: 1, backgroundColor: '#333', height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  pwdBtnSave: { flex: 1, backgroundColor: '#FFD700', height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  pwdBtnSave: { flex: 1, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  menuBox: { position: 'absolute', top: 100, right: 20, backgroundColor: '#222', borderRadius: 16, width: 220, borderWidth: 1, borderColor: '#444', shadowColor: '#000', shadowOffset: {width: 0, height: 5}, shadowOpacity: 0.5, shadowRadius: 10, overflow: 'hidden' },
+  menuBox: { position: 'absolute', top: 100, right: 20, borderRadius: 16, width: 220, borderWidth: 1, shadowColor: '#000', shadowOffset: {width: 0, height: 5}, shadowOpacity: 0.5, shadowRadius: 10, overflow: 'hidden' },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 15 },
-  menuText: { color: '#FFF', fontSize: 16, fontWeight: '600' }
+  menuText: { fontSize: 16, fontWeight: '600' }
 });

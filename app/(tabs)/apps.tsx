@@ -18,7 +18,9 @@ const getVipMillis = (vipExpire: any) => {
 };
 
 const RegularAppRow = memo(({ item }: { item: AppItem }) => {
+  useThemeUpdate();
   const router = useRouter();
+  const styles = getStyles(COLORS);
 
   const handleDownloadClick = async () => {
     if (!auth.currentUser) {
@@ -75,6 +77,7 @@ export default function AppsScreen() {
   const [categories, setCategories] = useState<string[]>(['Tất cả']);
   const [uiCat, setUiCat] = useState('Tất cả');
   const [listCat, setListCat] = useState('Tất cả');
+  const styles = getStyles(COLORS);
 
   const measures = useRef<Record<string, { x: number, width: number }>>({}).current;
   const slideX = useRef(new Animated.Value(0)).current;
@@ -105,9 +108,11 @@ export default function AppsScreen() {
     ? apps 
     : apps.filter(a => a.category && a.category.trim().toLowerCase() === listCat.trim().toLowerCase());
 
+  const isLightMode = COLORS.background === '#F2F2F7';
+
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style={isLightMode ? 'dark' : 'light'} />
       <View style={styles.header}><Text style={styles.largeTitle}>Kho Ứng Dụng</Text></View>
 
       {loading ? (
@@ -161,18 +166,18 @@ export default function AppsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (theme: typeof COLORS) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   scrollContent: { paddingTop: 10, paddingBottom: 140 },
   header: { paddingTop: 60, paddingHorizontal: 20, marginBottom: 5 },
-  largeTitle: { color: COLORS.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
+  largeTitle: { color: theme.text, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
   
-  categoryContainer: { borderBottomWidth: 0.8, borderBottomColor: COLORS.border, paddingBottom: 12, marginBottom: 5, marginTop: 15 },
+  categoryContainer: { borderBottomWidth: 0.8, borderBottomColor: theme.border, paddingBottom: 12, marginBottom: 5, marginTop: 15 },
   catScroll: { paddingHorizontal: 20 },
   slidingPill: { position: 'absolute', top: 0, bottom: 0, borderRadius: 20, overflow: 'hidden' },
   catBtn: { paddingHorizontal: 20, paddingVertical: 10, zIndex: 2, justifyContent: 'center' },
-  catText: { color: COLORS.textMuted, fontSize: 16, fontWeight: '600' },
-  catTextActive: { color: '#FFFFFF', fontWeight: '700' },
+  catText: { color: theme.textMuted, fontSize: 16, fontWeight: '600' },
+  catTextActive: { color: theme.textDark, fontWeight: '700' },
   
   loadingContainer: { alignItems: 'center', marginTop: 100 },
   rowWrapper: {
@@ -181,9 +186,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   appRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12 },
-  appIconSmall: { width: 60, height: 60, borderRadius: 13, backgroundColor: COLORS.surfaceSolid, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  appIconSmall: { width: 60, height: 60, borderRadius: 13, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
   appInfo: { flex: 1, marginLeft: 14, justifyContent: 'center' },
-  appName: { color: COLORS.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  appSub: { color: COLORS.textMuted, fontSize: 12 },
-  divider: { height: 0.5, backgroundColor: 'rgba(255, 255, 255, 0.08)', marginLeft: 74 }
+  appName: { color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  appSub: { color: theme.textMuted, fontSize: 12 },
+  divider: { height: 0.5, backgroundColor: theme.border, marginLeft: 74 }
 });

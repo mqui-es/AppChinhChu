@@ -621,6 +621,7 @@ bool ZSignAsset::Init(
 			if (NULL == evpPKey) {
 				BIO_reset(bioPKey);
 				OSSL_PROVIDER_load(NULL, "legacy");
+				OSSL_PROVIDER_load(NULL, "default");
 				PKCS12* p12 = d2i_PKCS12_bio(bioPKey, NULL);
 				if (NULL != p12) {
 					if (0 == PKCS12_parse(p12, strPassword.c_str(), &evpPKey, &x509Cert, NULL)) {
