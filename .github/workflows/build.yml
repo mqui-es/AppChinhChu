@@ -37,7 +37,7 @@ jobs:
           print('2. Dọn rác CLI và đổi tên OpenSSL...')
           if os.path.exists(os.path.join(ios_dir, 'openssl.h')): os.rename(os.path.join(ios_dir, 'openssl.h'), os.path.join(ios_dir, 'zsign_openssl.h'))
           if os.path.exists(os.path.join(ios_dir, 'openssl.cpp')): os.rename(os.path.join(ios_dir, 'openssl.cpp'), os.path.join(ios_dir, 'zsign_openssl.cpp'))
-          if os.path.exists(os.path.join(ios_dir, 'zsign.cpp')): os.remove(os.path.join(ios_dir, 'zsign.cpp'))
+          # if os.path.exists(os.path.join(ios_dir, 'zsign.cpp')): os.remove(os.path.join(ios_dir, 'zsign.cpp'))
 
           print('3. Nắn lại đường dẫn và tiêm kháng thể C++...')
           for root, dirs, files in os.walk(ios_dir):
