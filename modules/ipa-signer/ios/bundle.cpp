@@ -551,7 +551,8 @@ bool ZBundle::SignFolder(ZSignAsset* pSignAsset,
 
 	ZLog::PrintV(">>> Signing: \t%s ...\n", m_strAppFolder.c_str());
 	ZLog::PrintV(">>> AppName: \t%s\n", strAppName.c_str());
-	ZLog::PrintV(">>> BundleId: \t%s\n", jvRoot["bundle_id"].as_cstr());
+	m_strBundleId = jvRoot["bundle_id"].as_cstr();
+	ZLog::PrintV(">>> BundleId: \t%s\n", m_strBundleId.c_str());
 	ZLog::PrintV(">>> Version: \t%s\n", jvRoot["bundle_version"].as_cstr());
 	ZLog::PrintV(">>> TeamId: \t%s\n", m_pSignAsset->m_strTeamId.c_str());
 	ZLog::PrintV(">>> SubjectCN: \t%s\n", m_pSignAsset->m_strSubjectCN.c_str());

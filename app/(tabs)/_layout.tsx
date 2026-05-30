@@ -5,32 +5,27 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, SHADOWS, useThemeUpdate } from '../../constants/theme';
+import { COLORS, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
-const TAB_COUNT = 7;
-const TAB_BAR_WIDTH = width - 28;
+const TAB_COUNT = 5;
+const TAB_BAR_WIDTH = width - 32;
 const TAB_WIDTH = (TAB_BAR_WIDTH - 12) / TAB_COUNT;
 
 const TAB_CONFIG = [
-  { name: 'index',    icon: 'house',          iconActive: 'house.fill',       label: 'Hôm nay' },
-  { name: 'apps',     icon: 'square.grid.2x2', iconActive: 'square.grid.2x2.fill', label: 'Kho' },
-  { name: 'search',   icon: 'magnifyingglass', iconActive: 'magnifyingglass', label: 'Tìm' },
-  { name: 'sign',     icon: 'wrench',          iconActive: 'wrench.fill',      label: 'Ký' },
-  { name: 'vip',      icon: 'star',            iconActive: 'star.fill',        label: 'VIP' },
-  { name: 'account',  icon: 'person',          iconActive: 'person.fill',      label: 'Cá nhân' },
-  { name: 'settings', icon: 'gearshape',       iconActive: 'gearshape.fill',   label: 'Cài đặt' },
+  { name: 'index',    icon: 'house',          iconActive: 'house.fill' },
+  { name: 'apps',     icon: 'square.grid.2x2', iconActive: 'square.grid.2x2.fill' },
+  { name: 'search',   icon: 'magnifyingglass', iconActive: 'magnifyingglass' },
+  { name: 'sign',     icon: 'wrench',          iconActive: 'wrench.fill' },
+  { name: 'account',  icon: 'person',          iconActive: 'person.fill' },
 ];
 
-// Ionicons tên tương ứng
 const IONICON_MAP: Record<string, { default: string; active: string }> = {
   'index':    { default: 'home-outline',     active: 'home' },
   'apps':     { default: 'grid-outline',     active: 'grid' },
   'search':   { default: 'search-outline',   active: 'search' },
   'sign':     { default: 'build-outline',    active: 'build' },
-  'vip':      { default: 'star-outline',     active: 'star' },
   'account':  { default: 'person-outline',   active: 'person' },
-  'settings': { default: 'settings-outline', active: 'settings' },
 };
 
 function TabIcon({ name, isFocused }: { name: string; isFocused: boolean }) {
@@ -47,7 +42,15 @@ function TabIcon({ name, isFocused }: { name: string; isFocused: boolean }) {
 
   const icons = IONICON_MAP[name] || { default: 'ellipse-outline', active: 'ellipse' };
   const iconName = isFocused ? icons.active : icons.default;
-  const tabLabel = TAB_CONFIG.find(t => t.name === name)?.label || name;
+  
+  const labelMap: Record<string, string> = {
+    'index': TXT.today,
+    'apps': TXT.apps,
+    'search': TXT.search,
+    'sign': TXT.langName === 'English' ? 'Sign' : 'Ký',
+    'account': TXT.profile,
+  };
+  const tabLabel = labelMap[name] || name;
   const isLight = COLORS.background === '#F2F2F7';
 
   return (
@@ -143,9 +146,7 @@ export default function TabLayout() {
         <Tabs.Screen name="apps"     options={{ title: 'Kho App' }} />
         <Tabs.Screen name="search"   options={{ title: 'Tìm kiếm' }} />
         <Tabs.Screen name="sign"     options={{ title: 'Ký App' }} />
-        <Tabs.Screen name="vip"      options={{ title: 'Kho VIP' }} />
         <Tabs.Screen name="account"  options={{ title: 'Cá nhân' }} />
-        <Tabs.Screen name="settings" options={{ title: 'Cài đặt' }} />
       </Tabs>
     </>
   );

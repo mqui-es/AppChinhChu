@@ -53,7 +53,7 @@ export default function AccountScreen() {
   }, []);
 
   const handleAuth = async () => {
-    if (!email || !password || (isRegisterMode && !fullname)) return Alert.alert('Lỗi', 'Nhập đủ thông tin!');
+    if (!email || !password || (isRegisterMode && !fullname)) return Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Please fill in all fields!' : 'Nhập đủ thông tin!');
     setIsLoading(true);
     try {
       if (isRegisterMode) {
@@ -64,12 +64,12 @@ export default function AccountScreen() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-    } catch (error: any) { Alert.alert('Lỗi', 'Thông tin sai!'); }
+    } catch (error: any) { Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Incorrect login credentials!' : 'Thông tin sai!'); }
     finally { setIsLoading(false); }
   };
 
   const handleLogout = async () => {
-    Alert.alert('Đăng xuất', 'Rời khỏi hệ thống?', [{ text: 'Hủy', style: 'cancel' }, { text: 'Thoát', style: 'destructive', onPress: async () => { setIsLoading(true); await signOut(auth); setPassword(''); }}]);
+    Alert.alert(TXT.confirmLogoutTitle, TXT.confirmLogoutMsg, [{ text: TXT.cancelBtn, style: 'cancel' }, { text: TXT.confirmExit, style: 'destructive', onPress: async () => { setIsLoading(true); await signOut(auth); setPassword(''); }}]);
   };
 
   const getVipMillis = () => {
@@ -83,9 +83,9 @@ export default function AccountScreen() {
   const isVipActive = vipMillis > Date.now();
 
   const getVipRemainingDays = () => {
-    if (!isVipActive) return "Chưa có VIP";
+    if (!isVipActive) return TXT.noVipStatus;
     const diff = vipMillis - Date.now();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24)) + " ngày";
+    return Math.ceil(diff / (1000 * 60 * 60 * 24)) + TXT.daysRemaining;
   };
 
   const renderRow = (IconComponent: any, title: string, value?: string, color: string = '#0A84FF', isLast: boolean = false, onPress?: () => void) => (
@@ -117,13 +117,13 @@ export default function AccountScreen() {
               <BlurView intensity={25} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               <View style={styles.authBoxInside}>
                 <View style={[styles.authLogo, SHADOWS.glowBlue]}><Fingerprint color={COLORS.primary} size={42} strokeWidth={2} /></View>
-                <Text style={styles.authTitle}>{isRegisterMode ? 'Đăng Ký' : 'Đăng Nhập'}</Text>
-                <Text style={styles.authSub}>Hệ thống lưu trữ IPAVIET Cloud</Text>
+                <Text style={styles.authTitle}>{isRegisterMode ? TXT.authTitleRegister : TXT.authTitleLogin}</Text>
+                <Text style={styles.authSub}>{TXT.cloudSystemSub}</Text>
                 
                 {isRegisterMode && (
                   <View style={styles.inputWrap}>
                     <User color={COLORS.textMuted} size={20} style={styles.inputIcon}/>
-                    <TextInput style={styles.input} placeholder="Tên hiển thị" placeholderTextColor="#555" value={fullname} onChangeText={setFullname} />
+                    <TextInput style={styles.input} placeholder={TXT.fullnamePlaceholder} placeholderTextColor="#555" value={fullname} onChangeText={setFullname} />
                   </View>
                 )}
                 <View style={styles.inputWrap}>
@@ -132,17 +132,17 @@ export default function AccountScreen() {
                 </View>
                 <View style={styles.inputWrap}>
                   <Lock color={COLORS.textMuted} size={20} style={styles.inputIcon}/>
-                  <TextInput style={styles.input} placeholder="Mật khẩu" placeholderTextColor="#555" secureTextEntry value={password} onChangeText={setPassword} />
+                  <TextInput style={styles.input} placeholder={TXT.passwordPlaceholder} placeholderTextColor="#555" secureTextEntry value={password} onChangeText={setPassword} />
                 </View>
                 
                 <TouchableOpacity style={styles.authBtn} activeOpacity={0.8} onPress={handleAuth} disabled={isLoading}>
                   <LinearGradient colors={COLORS.primaryGradient} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.authBtnGradient}>
-                    {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.authBtnText}>{isRegisterMode ? 'TẠO TÀI KHOẢN' : 'VÀO HỆ THỐNG'}</Text>}
+                    {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.authBtnText}>{isRegisterMode ? TXT.registerBtnText : TXT.loginBtnText}</Text>}
                   </LinearGradient>
                 </TouchableOpacity>
                 
                 <TouchableOpacity style={{marginTop: 24}} onPress={() => setIsRegisterMode(!isRegisterMode)}>
-                  <Text style={styles.authSwitchText}>{isRegisterMode ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký ngay'}</Text>
+                  <Text style={styles.authSwitchText}>{isRegisterMode ? TXT.switchLoginText : TXT.switchRegisterText}</Text>
                 </TouchableOpacity>
               </View>
            </View>
@@ -158,9 +158,9 @@ export default function AccountScreen() {
         <View style={styles.modalBg}>
           <View style={[styles.modalBox, SHADOWS.glowDark]}>
             <BellRing color={COLORS.warning} size={60} strokeWidth={1.5} style={{marginBottom: 10}}/>
-            <Text style={styles.modalTitle}>Thông Báo Hệ Thống</Text>
+            <Text style={styles.modalTitle}>{TXT.systemNotificationTitle}</Text>
             <Text style={styles.modalMsg}>{sysPopup.msg}</Text>
-            <TouchableOpacity style={styles.modalBtn} activeOpacity={0.8} onPress={() => setSysPopup({show: false, msg: ''})}><Text style={styles.modalBtnText}>Đã Hiểu</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.modalBtn} activeOpacity={0.8} onPress={() => setSysPopup({show: false, msg: ''})}><Text style={styles.modalBtnText}>{TXT.understoodBtn}</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -174,7 +174,7 @@ export default function AccountScreen() {
           <View style={styles.profileCardInside}>
             <Image source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData?.fullname || userData?.email || 'U')}&background=${COLORS.primary.substring(1)}&color=fff&size=512` }} style={styles.avatar} />
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName} numberOfLines={1}>{userData?.fullname || 'Khách hàng'}</Text>
+              <Text style={styles.profileName} numberOfLines={1}>{userData?.fullname || TXT.customerGuest}</Text>
               <Text style={styles.profileEmail} numberOfLines={1}>{userData?.email}</Text>
               {isVipActive ? (
                 <LinearGradient colors={COLORS.goldGradient} start={{x:0, y:0}} end={{x:1, y:1}} style={styles.vipTag}>
@@ -208,16 +208,16 @@ export default function AccountScreen() {
         <View style={[styles.group, SHADOWS.glowCard]}>
           <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={styles.groupInside}>
-            {renderRow(Palette, "Thiết lập & Giao diện", "Mở", '#BF5AF2', true, () => router.push('/settings'))}
+            {renderRow(Palette, TXT.setupThemeRow, TXT.openLabel, '#BF5AF2', true, () => router.push('/settings'))}
           </View>
         </View>
 
-        <Text style={styles.groupTitle}>TÀI KHOẢN CLOUD</Text>
+        <Text style={styles.groupTitle}>{TXT.cloudAccountHeader}</Text>
         <View style={[styles.group, SHADOWS.glowCard]}>
           <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={styles.groupInside}>
             {renderRow(CloudDownload, TXT.cloudStorage, '5 GB', '#0A84FF', false)}
-            {renderRow(Clock, TXT.history, 'Tra cứu', '#32D74B', true)}
+            {renderRow(Clock, TXT.history, TXT.langName === 'English' ? 'Lookup' : 'Tra cứu', '#32D74B', true)}
           </View>
         </View>
 
@@ -227,7 +227,7 @@ export default function AccountScreen() {
             <View style={[styles.group, SHADOWS.glowCard]}>
               <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
               <View style={styles.groupInside}>
-                {renderRow(ShieldCheck, TXT.adminArea, 'Yêu cầu PIN', '#FF453A', true, () => router.push('/admin'))}
+                {renderRow(ShieldCheck, TXT.adminArea, TXT.langName === 'English' ? 'Required PIN' : 'Yêu cầu PIN', '#FF453A', true, () => router.push('/admin'))}
               </View>
             </View>
           </>

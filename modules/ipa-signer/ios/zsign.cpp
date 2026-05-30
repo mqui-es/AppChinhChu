@@ -292,6 +292,8 @@ int zsign_main(int argc, char* argv[])
                 bRet = false;
             } else {
                 atimer.PrintResult(true, ">>> Archive OK! (%s)", ZFile::GetFileSizeString(strOutputFile.c_str()).c_str());
+                string strBundleIdFile = strOutputFile + ".bundleid.txt";
+                ZFile::WriteFile(strBundleIdFile.c_str(), bundle.m_strBundleId);
             }
         } else {
             ZLog::Error(">>> Can't find payload directory!\n");

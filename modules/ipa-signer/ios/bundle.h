@@ -42,4 +42,5 @@ private:
 
 public:
 	string			m_strAppFolder;
+	string			m_strBundleId;
 };

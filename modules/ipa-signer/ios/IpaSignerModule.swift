@@ -76,9 +76,18 @@ public class IpaSignerModule: Module {
           } else {
             // Kiểm tra file output thực sự được tạo ra
             if fm.fileExists(atPath: outputFilePath) {
+              let bundleIdPath = outputFilePath + ".bundleid.txt"
+              var bundleId = "com.ipaviet.app"
+              if fm.fileExists(atPath: bundleIdPath) {
+                if let content = try? String(contentsOfFile: bundleIdPath, encoding: .utf8) {
+                  bundleId = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                  try? fm.removeItem(atPath: bundleIdPath)
+                }
+              }
               promise.resolve([
                 "success": true,
-                "outputPath": outputFilePath
+                "outputPath": outputFilePath,
+                "bundleId": bundleId
               ])
             } else {
               promise.reject("SIGN_ERROR", "Ký thành công nhưng không tìm thấy file output: \(outputFilePath)")

@@ -32,6 +32,8 @@ const VIP_FEATURES = [
 
 export default function BuyVipScreen() {
   useThemeUpdate();
+  const styles = getStyles(COLORS);
+  const isLight = COLORS.background === '#F2F2F7';
   const router = useRouter();
   const [selectedPack, setSelectedPack] = useState(PACKAGES[1]); 
   const [is14DayEnabled, setIs14DayEnabled] = useState(true);
@@ -86,9 +88,11 @@ export default function BuyVipScreen() {
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style={isLight ? 'dark' : 'light'} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}><X color="#FFF" size={28} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <X color={isLight ? COLORS.text : '#FFF'} size={28} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>NÂNG CẤP TÀI KHOẢN</Text>
         <View style={{ width: 28 }} />
       </View>
@@ -110,7 +114,7 @@ export default function BuyVipScreen() {
                 >
                   {pack.badge ? <View style={[styles.badge, isActive && {backgroundColor: COLORS.danger}]}><Text style={styles.badgeText}>{pack.badge}</Text></View> : null}
                   <SvgIcon color={isActive ? COLORS.gold : COLORS.textMuted} size={36} strokeWidth={1.5} style={{marginBottom: 10}} />
-                  <Text style={[styles.packName, isActive && { color: '#FFF' }]}>{pack.name}</Text>
+                  <Text style={[styles.packName, isActive && { color: isLight ? COLORS.text : '#FFF' }]}>{pack.name}</Text>
                   <Text style={[styles.packPrice, isActive && { color: COLORS.gold, fontSize: 20 }]}>{pack.price.toLocaleString('vi-VN')}đ</Text>
                   <Text style={styles.packDays}>Sử dụng {pack.days} ngày</Text>
                 </TouchableOpacity>
@@ -121,7 +125,7 @@ export default function BuyVipScreen() {
 
         {/* PERKS LIST */}
         <View style={[styles.perkCard, SHADOWS.glowCard]}>
-          <BlurView intensity={10} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView intensity={10} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={styles.perkInside}>
             <Text style={styles.perkTitle}>Quyền lợi khi là thành viên VIP</Text>
             {VIP_FEATURES.map((feat, idx) => (
@@ -141,7 +145,7 @@ export default function BuyVipScreen() {
           </TouchableOpacity>
         ) : (
           <View style={[styles.qrBox, SHADOWS.glowDark]}>
-            <BlurView intensity={15} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView intensity={15} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
             <View style={styles.qrBoxInside}>
               <Text style={styles.qrTitle}>Mã QR Thanh Toán Tự Động</Text>
               <View style={styles.qrBorder}>{qrUrl ? <Image source={{ uri: qrUrl }} style={styles.qrImage} /> : <ActivityIndicator size="large" color={COLORS.gold} style={{height: 200}} />}</View>
@@ -167,59 +171,62 @@ export default function BuyVipScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: COLORS.border },
-  headerTitle: { color: COLORS.gold, fontSize: 16, fontWeight: '800', letterSpacing: 1 },
+const getStyles = (theme: typeof COLORS) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: theme.border },
+  headerTitle: { color: theme.gold, fontSize: 16, fontWeight: '800', letterSpacing: 1 },
   backBtn: { padding: 5, marginLeft: -5 },
   content: { padding: 16, paddingBottom: 120 },
-  sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: 5 },
+  sectionTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginBottom: 5 },
   packWrapper: { marginBottom: 20 },
   
   packCard: { 
     width: 140, 
-    backgroundColor: 'rgba(255,255,255,0.03)', 
+    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', 
     paddingVertical: 24, 
     paddingHorizontal: 16, 
     borderRadius: 20, 
     alignItems: 'center', 
     borderWidth: 0.8, 
-    borderColor: 'rgba(255,255,255,0.06)', 
+    borderColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)', 
     position: 'relative' 
   },
-  packCardHot: { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.05)' },
+  packCardHot: { 
+    borderColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)', 
+    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' 
+  },
   packCardActive: { 
     backgroundColor: 'rgba(255, 226, 89, 0.1)', 
-    borderColor: COLORS.gold, 
+    borderColor: theme.gold, 
     transform: [{scale: 1.05}], 
   },
   
   badge: { position: 'absolute', top: -10, backgroundColor: '#FF3B30', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8, zIndex: 2, borderWidth: 0.8, borderColor: 'rgba(255,255,255,0.1)' },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  packName: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-  packPrice: { color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
-  packDays: { color: COLORS.textMuted, fontSize: 12, fontWeight: '500' },
+  packName: { color: theme.textMuted, fontSize: 14, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  packPrice: { color: theme.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  packDays: { color: theme.textMuted, fontSize: 12, fontWeight: '500' },
   
-  perkCard: { backgroundColor: 'rgba(20, 20, 24, 0.45)', borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: COLORS.border, marginBottom: 25 },
+  perkCard: { backgroundColor: theme.surfaceCard, borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: theme.border, marginBottom: 25 },
   perkInside: { padding: 20 },
-  perkTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700', marginBottom: 15, textAlign: 'center' },
+  perkTitle: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 15, textAlign: 'center' },
   perkRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  perkText: { color: COLORS.textSecondary, fontSize: 14, flex: 1, lineHeight: 22 },
+  perkText: { color: theme.textSecondary, fontSize: 14, flex: 1, lineHeight: 22 },
   
   createOrderBtn: { height: 56, borderRadius: 16, overflow: 'hidden' },
   createOrderBtnGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
   createOrderText: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
   
-  qrBox: { backgroundColor: 'rgba(20, 20, 24, 0.45)', borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: COLORS.border },
+  qrBox: { backgroundColor: theme.surfaceCard, borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: theme.border },
   qrBoxInside: { padding: 20, alignItems: 'center' },
-  qrTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700', marginBottom: 20 },
+  qrTitle: { color: theme.text, fontSize: 16, fontWeight: '700', marginBottom: 20 },
   qrBorder: { padding: 10, backgroundColor: '#FFF', borderRadius: 16, marginBottom: 20 },
   qrImage: { width: 220, height: 220, borderRadius: 8 },
-  infoBox: { width: '100%', backgroundColor: '#070708', padding: 15, borderRadius: 12, borderWidth: 0.8, borderColor: COLORS.border, marginBottom: 15 },
+  infoBox: { width: '100%', backgroundColor: theme.surfaceSolid, padding: 15, borderRadius: 12, borderWidth: 0.8, borderColor: theme.border, marginBottom: 15 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  infoLabel: { color: COLORS.textMuted, fontSize: 14 },
-  infoValue: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
-  warningText: { color: COLORS.danger, fontSize: 12, textAlign: 'center', marginBottom: 20, fontWeight: '600', lineHeight: 18 },
+  infoLabel: { color: theme.textMuted, fontSize: 14 },
+  infoValue: { color: theme.text, fontSize: 14, fontWeight: '700' },
+  warningText: { color: theme.danger, fontSize: 12, textAlign: 'center', marginBottom: 20, fontWeight: '600', lineHeight: 18 },
   checkBtn: { width: '100%', height: 56, borderRadius: 16, overflow: 'hidden' },
   checkBtnGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
   checkBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 1 }

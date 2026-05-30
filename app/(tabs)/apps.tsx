@@ -113,7 +113,7 @@ export default function AppsScreen() {
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
       <StatusBar style={isLightMode ? 'dark' : 'light'} />
-      <View style={styles.header}><Text style={styles.largeTitle}>Kho Ứng Dụng</Text></View>
+      <View style={styles.header}><Text style={styles.largeTitle}>{TXT.appStoreTitle}</Text></View>
 
       {loading ? (
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>
@@ -140,7 +140,9 @@ export default function AppsScreen() {
                     }}
                     onPress={() => handleSelectCategory(cat)}
                   >
-                    <Text style={[styles.catText, uiCat === cat && styles.catTextActive]}>{cat}</Text>
+                    <Text style={[styles.catText, uiCat === cat && styles.catTextActive]}>
+                      {cat === 'Tất cả' ? (TXT.langName === 'English' ? 'All' : 'Tất cả') : cat}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>

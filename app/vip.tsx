@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef, memo } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, ActivityIndicator, ScrollView, Animated, InteractionManager, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Sparkles } from 'lucide-react-native';
+import { Sparkles, ChevronLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { fetchVIPApps, AppItem } from '../../constants/data';
-import { ListDownloadBtn } from './search';
-import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { fetchVIPApps, AppItem } from '../constants/data';
+import { ListDownloadBtn } from './(tabs)/search';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../constants/theme';
 
-import { auth, db } from '../../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 const SmartVIPRow = memo(({ item, index, onAccessDenied }: { item: AppItem; index: number; onAccessDenied: () => void }) => {
@@ -28,9 +28,9 @@ const SmartVIPRow = memo(({ item, index, onAccessDenied }: { item: AppItem; inde
   }, []);
 
   const getRankColors = (idx: number): readonly [string, string, ...string[]] => {
-    if (idx === 0) return COLORS.goldGradient; // Gold
-    if (idx === 1) return ['#E2E2E2', '#8E8E93'] as const; // Silver
-    if (idx === 2) return ['#CD7F32', '#A0522D'] as const; // Bronze
+    if (idx === 0) return COLORS.goldGradient;
+    if (idx === 1) return ['#E2E2E2', '#8E8E93'] as const;
+    if (idx === 2) return ['#CD7F32', '#A0522D'] as const;
     return ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.05)'] as const;
   };
 
@@ -89,7 +89,8 @@ export default function VIPScreen() {
     fetchVIPApps().then((data) => {
       setApps(data);
       const uniqueCats = Array.from(new Set(data.map(app => app.category))).filter(c => c && c !== 'Khác');
-      setCategories(['Tất cả', ...uniqueCats]); setLoading(false);
+      setCategories(['Tất cả', ...uniqueCats]); 
+      setLoading(false);
     });
 
     let unsubDoc: any;
@@ -138,7 +139,11 @@ export default function VIPScreen() {
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
       <StatusBar style={isLightMode ? 'dark' : 'light'} />
       <View style={styles.header}>
-        <View style={styles.titleWrapper}>
+        <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} onPress={() => router.back()}>
+          <ChevronLeft size={24} color={COLORS.primary} />
+          <Text style={[styles.backText, { color: COLORS.primary }]}>Quay lại</Text>
+        </TouchableOpacity>
+        <View style={[styles.titleWrapper, { marginTop: 12 }]}>
           <Text style={styles.largeTitle}>Kho VIP</Text>
           <Sparkles color={COLORS.gold} size={28} strokeWidth={2.5} />
         </View>
@@ -203,6 +208,8 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   scrollContent: { paddingTop: 10, paddingBottom: 140 },
   header: { paddingTop: 60, paddingHorizontal: 20, marginBottom: 5 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
+  backText: { fontSize: 16, fontWeight: '500' },
   titleWrapper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   largeTitle: { color: theme.gold, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
   desc: { color: theme.textMuted, fontSize: 14, marginTop: 4 },

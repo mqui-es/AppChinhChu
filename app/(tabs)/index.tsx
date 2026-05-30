@@ -110,7 +110,7 @@ const AppRowItem = memo(({ app, onPress, showDivider }: { app: AppItem; onPress:
             onPress={onPress}
             activeOpacity={0.75}
           >
-            <Text style={[styles.getBtnText, { color: COLORS.primary }]}>NHẬN</Text>
+            <Text style={[styles.getBtnText, { color: COLORS.primary }]}>{TXT.langName === 'English' ? 'GET' : 'NHẬN'}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </Animated.View>
@@ -156,7 +156,7 @@ const FeaturedCard = memo(({ app, onPress }: { app: AppItem; onPress: () => void
         <BlurView intensity={20} tint="dark" style={styles.featuredBottom}>
           <View style={styles.featuredBottomContent}>
             <View style={styles.featuredTag}>
-              <Text style={styles.featuredTagText}>ĐỀ XUẤT</Text>
+              <Text style={styles.featuredTagText}>{TXT.suggestedTitle.toUpperCase()}</Text>
             </View>
             <View style={styles.featuredTextArea}>
               <Text style={styles.featuredTitle} numberOfLines={1}>{app.name}</Text>
@@ -169,7 +169,7 @@ const FeaturedCard = memo(({ app, onPress }: { app: AppItem; onPress: () => void
                 end={{ x: 1, y: 0 }}
                 style={styles.featuredGetGradient}
               >
-                <Text style={styles.featuredGetText}>NHẬN</Text>
+                <Text style={styles.featuredGetText}>{TXT.langName === 'English' ? 'GET' : 'NHẬN'}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -225,7 +225,7 @@ export default function HomeScreen() {
         <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
           <Text style={[styles.dateLabel, { color: COLORS.textMuted }]}>{today.toUpperCase()}</Text>
           <View style={styles.headerRow}>
-            <Text style={[styles.largeTitle, { color: COLORS.text }]}>Khám phá</Text>
+            <Text style={[styles.largeTitle, { color: COLORS.text }]}>{TXT.discoverTitle}</Text>
             <TouchableOpacity 
               style={[styles.avatarBtn, { borderColor: COLORS.border, backgroundColor: COLORS.surface }]} 
               onPress={() => router.push('/account')}
@@ -242,7 +242,7 @@ export default function HomeScreen() {
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={[styles.loadingText, { color: COLORS.textMuted }]}>Đang tải...</Text>
+            <Text style={[styles.loadingText, { color: COLORS.textMuted }]}>{TXT.loading}</Text>
           </View>
         ) : (
           <>
@@ -256,11 +256,11 @@ export default function HomeScreen() {
             {/* ── VIP KHO NỔI BẬT ── */}
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={[styles.sectionTitle, { color: COLORS.gold }]}>⭐ Kho VIP</Text>
-                <Text style={[styles.sectionSubtitle, { color: COLORS.textMuted }]}>App độc quyền mỗi tuần</Text>
+                <Text style={[styles.sectionTitle, { color: COLORS.gold }]}>⭐ {TXT.vip}</Text>
+                <Text style={[styles.sectionSubtitle, { color: COLORS.textMuted }]}>{TXT.langName === 'English' ? 'Exclusive apps updated weekly' : 'App độc quyền mỗi tuần'}</Text>
               </View>
               <TouchableOpacity onPress={() => router.push('/vip')} activeOpacity={0.7}>
-                <Text style={[styles.seeAll, { color: COLORS.primary }]}>Xem tất cả →</Text>
+                <Text style={[styles.seeAll, { color: COLORS.primary }]}>{TXT.langName === 'English' ? 'See all →' : 'Xem tất cả →'}</Text>
               </TouchableOpacity>
             </View>
             
@@ -278,8 +278,8 @@ export default function HomeScreen() {
             {/* ── MỚI CẬP NHẬT ── */}
             <View style={styles.sectionHeader}>
               <View>
-                <Text style={[styles.sectionTitle, { color: COLORS.text }]}>🔥 Mới Cập Nhật</Text>
-                <Text style={[styles.sectionSubtitle, { color: COLORS.textMuted }]}>Ứng dụng miễn phí mới nhất</Text>
+                <Text style={[styles.sectionTitle, { color: COLORS.text }]}>🔥 {TXT.langName === 'English' ? 'Newly Updated' : 'Mới Cập Nhật'}</Text>
+                <Text style={[styles.sectionSubtitle, { color: COLORS.textMuted }]}>{TXT.langName === 'English' ? 'Latest free applications' : 'Ứng dụng miễn phí mới nhất'}</Text>
               </View>
             </View>
             

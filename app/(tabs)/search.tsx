@@ -10,14 +10,7 @@ import { requireNativeModule } from 'expo-modules-core';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const StaticServer = (() => {
-  if (Platform.OS === 'web') return null;
-  try {
-    return require('@dr.pogodin/react-native-static-server').default || require('@dr.pogodin/react-native-static-server');
-  } catch (e) {
-    return null;
-  }
-})();
+import { startStaticServer } from '../../utils/staticServer';
 
 const IpaSigner = (() => {
   if (Platform.OS === 'web') return null;
@@ -39,6 +32,7 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
   const router = useRouter();
   const [status, setStatus] = useState('CÀI ĐẶT');
   const styles = getStyles(COLORS);
+  const currentLang = TXT.langName === 'English' ? 'en' : 'vi';
 
   const handleOneClickInstall = async () => {
     if (status !== 'CÀI ĐẶT' && status !== 'LỖI, THỬ LẠI') return;
@@ -46,7 +40,7 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       Alert.alert("Không khả dụng", "Tính năng ký và cài đặt IPA ngoại tuyến chỉ được hỗ trợ trên thiết bị iOS thực tế.");
       return;
     }
-    if (!IpaSigner || !StaticServer) {
+    if (!IpaSigner) {
       Alert.alert("Hạn chế của Expo Go", "Tính năng ký và cài đặt IPA yêu cầu bản build phát triển (Development Build) vì sử dụng mô-đun native tự viết. Sếp không thể chạy tính năng này trên Expo Go.");
       return;
     }
@@ -91,12 +85,11 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       const signedFileName = signResult.outputPath.split('/').pop();
       const signedFileDir = signResult.outputPath.substring(0, signResult.outputPath.lastIndexOf('/'));
       
-      const server = new StaticServer({ port: 0, fileDir: signedFileDir, hostname: '127.0.0.1' });
-      const serverUrl = await server.start();
+      const serverUrl = await startStaticServer(signedFileDir);
       
       setStatus('Hoàn tất!');
       const localIpaUrl = `${serverUrl}/${signedFileName}`;
-      const workerUrl = `${INSTALLER_WORKER_URL}?ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent((app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}`;
+      const workerUrl = `${INSTALLER_WORKER_URL}?ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}`;
       
       Alert.alert(
         "Sẵn sàng cài đặt", 
@@ -113,18 +106,28 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
     }
   };
 
+  const getStatusText = (s: string) => {
+    if (s === 'CÀI ĐẶT') return TXT.install;
+    if (s === 'Đang tải...') return TXT.loading;
+    if (s === 'Đang ký App...') return TXT.signing;
+    if (s === 'Tạo OTA...') return TXT.generatingOta;
+    if (s === 'Hoàn tất!') return TXT.done;
+    if (s === 'LỖI, THỬ LẠI') return currentLang === 'en' ? 'ERROR, RETRY' : 'LỖI, THỬ LẠI';
+    return s;
+  };
+
   return (
     <TouchableOpacity style={styles.getButton} activeOpacity={0.8} onPress={handleOneClickInstall}>
-      <Text style={styles.getButtonText}>{status}</Text>
+      <Text style={styles.getButtonText}>{getStatusText(status)}</Text>
     </TouchableOpacity>
   );
 };
 
 const DISCOVER_CARDS = [
-  { id: '1', title: 'Top Ứng Dụng', colors: ['#0A84FF', '#0055D4'], icon: 'trophy' },
-  { id: '2', title: 'Top Trò Chơi', colors: ['#FF9F0A', '#FF3B30'], icon: 'game-controller' },
-  { id: '3', title: 'Bán Chạy Nhất', colors: ['#30D158', '#108040'], icon: 'ribbon' },
-  { id: '4', title: 'Hiệu Suất', colors: ['#BF5AF2', '#6200EE'], icon: 'rocket' }
+  { id: '1', title: 'Top Ứng Dụng', colors: ['#0A84FF', '#0055D4'], icon: 'trophy', key: 'topApps' },
+  { id: '2', title: 'Top Trò Chơi', colors: ['#FF9F0A', '#FF3B30'], icon: 'game-controller', key: 'topGames' },
+  { id: '3', title: 'Bán Chạy Nhất', colors: ['#30D158', '#108040'], icon: 'ribbon', key: 'bestSellers' },
+  { id: '4', title: 'Hiệu Suất', colors: ['#BF5AF2', '#6200EE'], icon: 'rocket', key: 'performance' }
 ] as const;
 
 export default function SearchScreen() {
@@ -183,14 +186,14 @@ export default function SearchScreen() {
       <StatusBar style={isLightMode ? 'dark' : 'light'} />
       {query.length > 0 ? (
         <View style={{flex: 1}}>
-          <View style={styles.headerSmall}><Text style={styles.smallTitle}>Kết quả tìm kiếm</Text></View>
-          <FlatList data={results} keyExtractor={(item) => item.id} renderItem={renderResultItem} contentContainerStyle={styles.scrollContent} ListEmptyComponent={<Text style={styles.emptyText}>Không tìm thấy kết quả nào.</Text>} keyboardShouldPersistTaps="handled" onScroll={() => Keyboard.dismiss()} />
+          <View style={styles.headerSmall}><Text style={styles.smallTitle}>{TXT.searchResult}</Text></View>
+          <FlatList data={results} keyExtractor={(item) => item.id} renderItem={renderResultItem} contentContainerStyle={styles.scrollContent} ListEmptyComponent={<Text style={styles.emptyText}>{TXT.noResult}</Text>} keyboardShouldPersistTaps="handled" onScroll={() => Keyboard.dismiss()} />
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}><Text style={styles.largeTitle}>Tìm kiếm</Text></View>
+          <View style={styles.header}><Text style={styles.largeTitle}>{TXT.search}</Text></View>
           
-          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Được Đề Xuất</Text></View>
+          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{TXT.suggestedTitle}</Text></View>
           <View style={[styles.cardListWrapper, SHADOWS.glowCard]}>
             <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
             <View style={styles.cardListContent}>
@@ -210,7 +213,7 @@ export default function SearchScreen() {
             </View>
           </View>
 
-          <View style={[styles.sectionHeader, {marginTop: 35}]}><Text style={styles.sectionTitle}>Khám Phá</Text></View>
+          <View style={[styles.sectionHeader, {marginTop: 35}]}><Text style={styles.sectionTitle}>{TXT.discoverTitle}</Text></View>
           <View style={styles.gridContainer}>
              {DISCOVER_CARDS.map(card => (
                <TouchableOpacity key={card.id} style={[styles.discoverCard, SHADOWS.glowCard]} activeOpacity={0.8}>
@@ -221,7 +224,7 @@ export default function SearchScreen() {
                     style={StyleSheet.absoluteFill}
                   />
                   <Ionicons name={card.icon as any} size={42} color="rgba(255,255,255,0.18)" style={styles.cardIconBg} />
-                  <Text style={styles.cardTitle}>{card.title}</Text>
+                  <Text style={styles.cardTitle}>{TXT[card.key as keyof typeof TXT] || card.title}</Text>
                </TouchableOpacity>
              ))}
           </View>
@@ -233,7 +236,7 @@ export default function SearchScreen() {
         <View style={[styles.floatingSearchBarShadow, SHADOWS.glowDark]}>
           <BlurView intensity={25} tint={isLightMode ? 'light' : 'dark'} style={styles.floatingSearchBar}>
             <Ionicons name="search" size={20} color="#8E8E93" style={{marginLeft: 5, marginRight: 10}} />
-            <TextInput style={[styles.searchInput, { color: COLORS.text }]} placeholder="Tìm app, game..." placeholderTextColor="#8E8E93" value={query} onChangeText={setQuery} autoCapitalize="none" clearButtonMode="while-editing" />
+            <TextInput style={[styles.searchInput, { color: COLORS.text }]} placeholder={TXT.searchPlaceholder} placeholderTextColor="#8E8E93" value={query} onChangeText={setQuery} autoCapitalize="none" clearButtonMode="while-editing" />
           </BlurView>
         </View>
       </Animated.View>

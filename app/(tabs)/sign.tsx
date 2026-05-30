@@ -19,7 +19,11 @@ const IpaSigner = (() => {
 })();
 
 import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical } from 'lucide-react-native';
-import { COLORS, useThemeUpdate } from '../../constants/theme';
+import { COLORS, useThemeUpdate, TXT } from '../../constants/theme';
+import { startStaticServer } from '../../utils/staticServer';
+import * as Linking from 'expo-linking';
+
+const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.dev";
 
 interface LocalFile { name: string; uri: string; size: string; timestamp: number; }
 interface CertItem { 
@@ -179,7 +183,7 @@ export default function SignScreen() {
   const handleShare = async (uri: string) => { try { const canShare = await Sharing.isAvailableAsync(); if (canShare) await Sharing.shareAsync(uri); } catch (error) {} };
   
   const handleDelete = (uri: string, name: string) => {
-    Alert.alert("Xóa File", `Xóa file ${name}?`, [ { text: "Hủy", style: "cancel" }, { text: "Xóa", style: "destructive", onPress: async () => { await FileSystem.deleteAsync(uri); loadDownloadedFiles(); } } ]);
+    Alert.alert(TXT.deleteFile, `${TXT.deleteFileConfirm} ${name}?`, [ { text: TXT.cancelBtn || "Hủy", style: "cancel" }, { text: TXT.langName === 'English' ? "Delete" : "Xóa", style: "destructive", onPress: async () => { await FileSystem.deleteAsync(uri); loadDownloadedFiles(); } } ]);
   };
 
   // Import IPA
@@ -192,17 +196,17 @@ export default function SignScreen() {
         
         const file = result.assets[0];
         if (!file.name.toLowerCase().endsWith('.ipa')) {
-          return Alert.alert("Lỗi", "Vui lòng chọn file có đuôi .ipa");
+          return Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? "Please select a file with .ipa extension" : "Vui lòng chọn file có đuôi .ipa");
         }
 
         setLoading(true);
         const newUri = FileSystem.documentDirectory + file.name.replace(/\s+/g, '_'); 
         await FileSystem.copyAsync({ from: file.uri, to: newUri });
         
-        Alert.alert("Thành công", "Đã thêm file IPA vào kho!");
+        Alert.alert(TXT.successLabel, TXT.langName === 'English' ? "IPA file added to storage!" : "Đã thêm file IPA vào kho!");
         loadDownloadedFiles();
       } catch (error: any) {
-        Alert.alert("Lỗi", "Không thể lấy file, vui lòng thử lại.");
+        Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? "Cannot retrieve file, please try again." : "Không thể lấy file, vui lòng thử lại.");
       } finally {
         setLoading(false);
       }
@@ -244,7 +248,7 @@ export default function SignScreen() {
         
         const file = result.assets[0];
         if (!file.name.toLowerCase().endsWith('.zip')) {
-          Alert.alert("Lỗi", "Vui lòng chọn tệp .zip chứa chứng chỉ.");
+          Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? "Please select a .zip file containing the certificate." : "Vui lòng chọn tệp .zip chứa chứng chỉ.");
           setSignModalVisible(true);
           return;
         }
@@ -266,7 +270,7 @@ export default function SignScreen() {
 
         if (!p12Data || !provData) {
           setIsUnzipping(false);
-          Alert.alert('Lỗi ZIP', 'Tệp ZIP không hợp lệ. Bên trong phải chứa ít nhất 1 file .p12 và 1 file .mobileprovision');
+          Alert.alert(TXT.langName === 'English' ? 'ZIP Error' : 'Lỗi ZIP', TXT.langName === 'English' ? 'Invalid ZIP file. It must contain at least one .p12 and one .mobileprovision file.' : 'Tệp ZIP không hợp lệ. Bên trong phải chứa ít nhất 1 file .p12 và 1 file .mobileprovision');
           return;
         }
 
@@ -280,13 +284,13 @@ export default function SignScreen() {
       } catch (error: any) {
         setIsUnzipping(false);
         setSignModalVisible(true);
-        Alert.alert("Lỗi", "Không thể đọc file ZIP.");
+        Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? "Cannot read ZIP file." : "Không thể đọc file ZIP.");
       }
     }, 500);
   };
 
   const saveCertToStorage = async () => {
-    if (!certPassword) return Alert.alert("Thiếu", "Vui lòng nhập mật khẩu của file P12");
+    if (!certPassword) return Alert.alert(TXT.langName === 'English' ? 'Missing' : 'Thiếu', TXT.langName === 'English' ? 'Please enter the P12 file password' : "Vui lòng nhập mật khẩu của file P12");
     
     setPwdModalVisible(false);
     try {
@@ -327,18 +331,18 @@ export default function SignScreen() {
       
       setTimeout(() => {
         setSignModalVisible(true);
-        Alert.alert("Thành công", "Chứng chỉ đã được nạp!");
+        Alert.alert(TXT.successLabel, TXT.langName === 'English' ? "Certificate loaded!" : "Chứng chỉ đã được nạp!");
       }, 500);
       
     } catch (error) {
-      Alert.alert("Lỗi", "Không thể lưu chứng chỉ vào máy.");
+      Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? "Cannot save certificate to device." : "Không thể lưu chứng chỉ vào máy.");
     }
   };
 
   const deleteCert = async (id: string) => {
-    Alert.alert("Xóa Chứng Chỉ", "Bạn muốn xóa chứng chỉ này khỏi máy?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Xóa", style: "destructive", onPress: async () => {
+    Alert.alert(TXT.deleteCertTitle, TXT.deleteCertConfirm, [
+      { text: TXT.cancelBtn, style: "cancel" },
+      { text: TXT.langName === 'English' ? 'Delete' : 'Xóa', style: "destructive", onPress: async () => {
           const updated = savedCerts.filter(c => c.id !== id);
           setSavedCerts(updated);
           await AsyncStorage.setItem('@saved_certs', JSON.stringify(updated));
@@ -357,27 +361,54 @@ export default function SignScreen() {
 
   const handleStartSign = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert("Không khả dụng", "Tính năng ký và cài đặt IPA ngoại tuyến chỉ được hỗ trợ trên thiết bị iOS thực tế.");
+      Alert.alert(TXT.langName === 'English' ? 'Not Available' : "Không khả dụng", TXT.langName === 'English' ? 'Offline signing and installation of IPA is only supported on physical iOS devices.' : "Tính năng ký và cài đặt IPA ngoại tuyến chỉ được hỗ trợ trên thiết bị iOS thực tế.");
       return;
     }
     if (!IpaSigner) {
-      Alert.alert("Hạn chế của Expo Go", "Tính năng ký và cài đặt IPA yêu cầu bản build phát triển (Development Build) vì sử dụng mô-đun native tự viết. Sếp không thể chạy tính năng này trên Expo Go.");
+      Alert.alert(TXT.langName === 'English' ? 'Expo Go Limitations' : "Hạn chế của Expo Go", TXT.langName === 'English' ? 'Signing and installing IPAs requires a development build because it uses a custom native module. You cannot run this on Expo Go.' : "Tính năng ký và cài đặt IPA yêu cầu bản build phát triển (Development Build) vì sử dụng mô-đun native tự viết. Sếp không thể chạy tính năng này trên Expo Go.");
       return;
     }
-    if (!selectedCert || !selectedIpa) return Alert.alert("Thiếu", "Vui lòng chọn đủ File IPA và Chứng chỉ để ký.");
+    if (!selectedCert || !selectedIpa) return Alert.alert(TXT.langName === 'English' ? 'Missing' : "Thiếu", TXT.selectIpaCert);
     
     setIsSigning(true);
     try {
       const result = await IpaSigner.signAppOffline(selectedIpa.uri, selectedCert.p12Uri, selectedCert.provUri, selectedCert.password);
       setIsSigning(false);
       setSignModalVisible(false);
-      Alert.alert("🎉 KÝ THÀNH CÔNG!", `File IPA mới đã được tạo và sẵn sàng cài đặt!`, [
-          { text: "Để sau", style: "cancel", onPress: () => loadDownloadedFiles() }, 
-          { text: "Cài Đặt Ngay", onPress: () => { Alert.alert("Thông báo", "Cài đặt: " + result.outputPath); loadDownloadedFiles(); }}
+
+      const handleInstallOTA = async () => {
+        try {
+          const signedFileName = result.outputPath.split('/').pop();
+          const signedFileDir = result.outputPath.substring(0, result.outputPath.lastIndexOf('/'));
+          
+          const serverUrl = await startStaticServer(signedFileDir);
+          const localIpaUrl = `${serverUrl}/${signedFileName}`;
+          
+          const bundleId = result.bundleId || 'com.ipaviet.app';
+          const appName = selectedIpa.name.replace(/\.ipa$/i, '');
+          const iconUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}&background=0A84FF&color=fff&size=512`;
+          
+          const workerUrl = `${INSTALLER_WORKER_URL}?ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(appName)}&bundle=${encodeURIComponent(bundleId)}&icon=${encodeURIComponent(iconUrl)}`;
+          
+          Alert.alert(
+            TXT.readyToInstall, 
+            TXT.safariInstallInstructions,
+            [{ text: TXT.openSafariBtn, onPress: () => {
+                Linking.openURL(workerUrl);
+            }}]
+          );
+        } catch (e: any) {
+          Alert.alert(TXT.errorLabel, (TXT.langName === 'English' ? "Could not launch local OTA server: " : "Không thể tạo máy chủ OTA cục bộ: ") + e.message);
+        }
+      };
+
+      Alert.alert(TXT.signSuccessTitle, TXT.signSuccessSub, [
+          { text: TXT.laterBtn, style: "cancel", onPress: () => loadDownloadedFiles() }, 
+          { text: TXT.installNowBtn, onPress: () => { handleInstallOTA(); loadDownloadedFiles(); }}
       ]);
     } catch (error: any) {
       setIsSigning(false);
-      Alert.alert("Lỗi Ký App", error.message || "Quá trình nhúng chứng chỉ thất bại.");
+      Alert.alert(TXT.langName === 'English' ? 'Signing Error' : "Lỗi Ký App", error.message || TXT.signFailure);
     }
   };
 
@@ -387,7 +418,7 @@ export default function SignScreen() {
         <View style={[styles.iconBox, { backgroundColor: COLORS.surfaceAccent }]}><FileArchive color={COLORS.primary} size={28} /></View>
         <View style={styles.fileInfo}>
           <Text style={[styles.fileName, { color: COLORS.text }]} numberOfLines={2}>{item.name}</Text>
-          <Text style={[styles.fileSize, { color: COLORS.textMuted }]}>{item.size} • Đã lưu</Text>
+          <Text style={[styles.fileSize, { color: COLORS.textMuted }]}>{item.size} • {TXT.langName === 'English' ? 'Saved' : 'Đã lưu'}</Text>
         </View>
       </View>
       <View style={[styles.actionGroup, { borderColor: COLORS.border }]}>
@@ -407,20 +438,20 @@ export default function SignScreen() {
       <StatusBar style={COLORS.background === '#F2F2F7' ? 'dark' : 'light'} />
       <View style={[styles.header, { borderColor: COLORS.border }]}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-          <Text style={[styles.largeTitle, { color: COLORS.text }]}>Quản Lý Ký App <Wrench color={COLORS.primary} size={26} strokeWidth={2.5} /></Text>
+          <Text style={[styles.largeTitle, { color: COLORS.text }]}>{TXT.signAppTitle} <Wrench color={COLORS.primary} size={26} strokeWidth={2.5} /></Text>
           <TouchableOpacity style={{padding: 5}} onPress={() => setMenuVisible(true)}>
             <MoreVertical color={COLORS.text} size={28} />
           </TouchableOpacity>
         </View>
 
         <View style={[styles.tabContainer, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
-          <TouchableOpacity style={[styles.tab, activeTab === 'ipa' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('ipa')}><Text style={[styles.tabText, activeTab === 'ipa' && styles.tabTextActive]}>File IPA Gốc</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, activeTab === 'installed' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('installed')}><Text style={[styles.tabText, activeTab === 'installed' && styles.tabTextActive]}>App Đã Ký</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, activeTab === 'ipa' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('ipa')}><Text style={[styles.tabText, activeTab === 'ipa' && [styles.tabTextActive, { color: COLORS.background === '#F2F2F7' ? COLORS.primary : '#FFFFFF' }]]}>{TXT.originalIpaShort}</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, activeTab === 'installed' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('installed')}><Text style={[styles.tabText, activeTab === 'installed' && [styles.tabTextActive, { color: COLORS.background === '#F2F2F7' ? COLORS.primary : '#FFFFFF' }]]}>{TXT.signedIpaShort}</Text></TouchableOpacity>
         </View>
       </View>
 
       {loading ? ( <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}} /> ) : localFiles.length === 0 ? (
-          <View style={styles.centerBox}><FolderOpen color={COLORS.textMuted} size={64} strokeWidth={1.5} /><Text style={[styles.emptyText, { color: COLORS.text }]}>Kho lưu trữ trống</Text></View>
+          <View style={styles.centerBox}><FolderOpen color={COLORS.textMuted} size={64} strokeWidth={1.5} /><Text style={[styles.emptyText, { color: COLORS.text }]}>{TXT.emptyStore}</Text></View>
       ) : (
           <FlatList data={localFiles} keyExtractor={(item) => item.uri} renderItem={renderItem} contentContainerStyle={styles.listContent} /> 
       )}
@@ -431,12 +462,12 @@ export default function SignScreen() {
           <View style={[styles.menuBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
             <TouchableOpacity style={styles.menuItem} onPress={importIpaFile}>
               <PlusCircle color={COLORS.primary} size={22} />
-              <Text style={[styles.menuText, { color: COLORS.text }]}>Thêm File IPA</Text>
+              <Text style={[styles.menuText, { color: COLORS.text }]}>{TXT.addIpa}</Text>
             </TouchableOpacity>
             <View style={{height: 1, backgroundColor: COLORS.border}} />
             <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/settings'); }}>
               <FileKey color="#FFD700" size={22} />
-              <Text style={[styles.menuText, { color: COLORS.text }]}>Quản Lý Chứng Chỉ</Text>
+              <Text style={[styles.menuText, { color: COLORS.text }]}>{TXT.manageCert}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -448,17 +479,27 @@ export default function SignScreen() {
           <View style={[styles.modalBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
             <TouchableOpacity style={[styles.closeModalBtn, { backgroundColor: COLORS.surface }]} onPress={() => !isSigning && setSignModalVisible(false)}><X color="#888" size={24} /></TouchableOpacity>
             
-            <Text style={[styles.modalTitle, { color: COLORS.text }]}>{selectedIpa ? 'CHỌN CHỨNG CHỈ' : 'KHO CHỨNG CHỈ CỦA BẠN'}</Text>
-            {selectedIpa && <Text style={[styles.modalSub, { color: COLORS.primary }]} numberOfLines={1}>File IPA: {selectedIpa.name}</Text>}
+            <Text style={[styles.modalTitle, { color: COLORS.text }]}>{selectedIpa ? TXT.selectCert : TXT.certStore}</Text>
+            {selectedIpa && <Text style={[styles.modalSub, { color: COLORS.primary }]} numberOfLines={1}>{TXT.langName === 'English' ? 'IPA File:' : 'File IPA:'} {selectedIpa.name}</Text>}
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 20, paddingTop: 10}} style={{ width: '100%' }}>
               
-              <TouchableOpacity style={styles.addCertBtn} onPress={importCertFromZip} disabled={isUnzipping}>
+              <TouchableOpacity 
+                style={[
+                  styles.addCertBtn, 
+                  { 
+                    backgroundColor: COLORS.background === '#F2F2F7' ? 'rgba(0,122,255,0.06)' : 'rgba(255,255,255,0.03)', 
+                    borderColor: COLORS.primary 
+                  }
+                ]} 
+                onPress={importCertFromZip} 
+                disabled={isUnzipping}
+              >
                  {isUnzipping ? <ActivityIndicator color={COLORS.primary} /> : <PlusCircle color={COLORS.primary} size={24} />}
-                 <Text style={[styles.addCertText, { color: COLORS.primary }]}>{isUnzipping ? 'Đang tải Tệp...' : 'Nhập tệp Chứng chỉ (.zip)'}</Text>
+                 <Text style={[styles.addCertText, { color: COLORS.primary }]}>{isUnzipping ? TXT.unzippingText : TXT.importZip}</Text>
               </TouchableOpacity>
 
-              {savedCerts.length === 0 && <Text style={{color: COLORS.textMuted, textAlign: 'center', marginTop: 20}}>Chưa có chứng chỉ nào được lưu.</Text>}
+              {savedCerts.length === 0 && <Text style={{color: COLORS.textMuted, textAlign: 'center', marginTop: 20}}>{TXT.noCertsSavedText}</Text>}
               
               {savedCerts.map((cert) => {
                 const isSelected = selectedCert?.id === cert.id;
@@ -468,8 +509,8 @@ export default function SignScreen() {
                        {isSelected ? <CheckCircle2 color={COLORS.success} size={24} style={{marginRight: 15}}/> : <FileKey color={COLORS.textMuted} size={24} style={{marginRight: 15}}/>}
                        <View style={{flex: 1}}>
                           <Text style={[styles.certName, { color: isSelected ? COLORS.success : COLORS.text }]}>{cert.profileName || cert.name}</Text>
-                          <Text style={[styles.certSub, { color: COLORS.textMuted }]} numberOfLines={1}>Doanh nghiệp: {cert.teamName || 'Không rõ'} ({cert.teamId || 'N/A'})</Text>
-                          <Text style={[styles.certSub, cert.isExpired ? {color: COLORS.danger} : {color: COLORS.textMuted}]} numberOfLines={1}>Hết hạn: {cert.expirationDate || 'Không rõ'} {cert.isExpired ? '(Đã hết hạn)' : ''}</Text>
+                          <Text style={[styles.certSub, { color: COLORS.textMuted }]} numberOfLines={1}>{TXT.enterpriseLabel} {cert.teamName || (TXT.langName === 'English' ? 'Unknown' : 'Không rõ')} ({cert.teamId || 'N/A'})</Text>
+                          <Text style={[styles.certSub, cert.isExpired ? {color: COLORS.danger} : {color: COLORS.textMuted}]} numberOfLines={1}>{TXT.expirationLabel} {cert.expirationDate || (TXT.langName === 'English' ? 'Unknown' : 'Không rõ')} {cert.isExpired ? (TXT.langName === 'English' ? '(Expired)' : '(Đã hết hạn)') : ''}</Text>
                        </View>
                     </View>
                     <TouchableOpacity style={{padding: 10}} onPress={() => deleteCert(cert.id)}><Trash2 color={COLORS.danger} size={18}/></TouchableOpacity>
@@ -482,9 +523,9 @@ export default function SignScreen() {
               <View style={{paddingTop: 15, borderTopWidth: 1, borderColor: COLORS.border, width: '100%'}}>
                 <TouchableOpacity style={[styles.signBtn, { backgroundColor: COLORS.primary }, (!selectedCert || isSigning) && {opacity: 0.5}]} onPress={handleStartSign} disabled={!selectedCert || isSigning}>
                   {isSigning ? (
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}><ActivityIndicator color={COLORS.textDark} style={{marginRight: 10}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>ĐANG ÉP XUNG LÕI IPA...</Text></View>
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}><ActivityIndicator color={COLORS.textDark} style={{marginRight: 10}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>{TXT.coreSigningText}</Text></View>
                   ) : (
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}><Rocket color={COLORS.textDark} size={20} style={{marginRight: 8}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>CHẠM ĐỂ KÝ NGAY</Text></View>
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}><Rocket color={COLORS.textDark} size={20} style={{marginRight: 8}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>{TXT.tapToSignNow}</Text></View>
                   )}
                 </TouchableOpacity>
               </View>
@@ -498,12 +539,12 @@ export default function SignScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBgCentered}>
           <View style={[styles.pwdBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
              <ShieldCheck color="#FFD700" size={50} style={{marginBottom: 15}}/>
-             <Text style={[styles.pwdTitle, { color: COLORS.text }]}>BẢO MẬT CHỨNG CHỈ</Text>
-             <Text style={[styles.pwdSub, { color: COLORS.textMuted }]}>Nhập mật khẩu cho tệp {tempZipData?.zipName}</Text>
-             <TextInput style={[styles.pwdInput, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]} placeholder="Mật khẩu file P12..." placeholderTextColor="#555" secureTextEntry value={certPassword} onChangeText={setCertPassword} autoFocus />
+             <Text style={[styles.pwdTitle, { color: COLORS.text }]}>{TXT.securedCert}</Text>
+             <Text style={[styles.pwdSub, { color: COLORS.textMuted }]}>{TXT.p12PasswordSub} {tempZipData?.zipName}</Text>
+             <TextInput style={[styles.pwdInput, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]} placeholder={TXT.pwdPlaceholder} placeholderTextColor="#555" secureTextEntry value={certPassword} onChangeText={setCertPassword} autoFocus />
              <View style={{flexDirection: 'row', gap: 10, marginTop: 20}}>
-               <TouchableOpacity style={styles.pwdBtnCancel} onPress={() => { setPwdModalVisible(false); setTimeout(() => setSignModalVisible(true), 500); }}><Text style={{color: '#FFF', fontWeight: 'bold'}}>HỦY BỎ</Text></TouchableOpacity>
-               <TouchableOpacity style={[styles.pwdBtnSave, { backgroundColor: COLORS.primary }]} onPress={saveCertToStorage}><Text style={{color: COLORS.textDark, fontWeight: '900'}}>LƯU VÀO KHO</Text></TouchableOpacity>
+               <TouchableOpacity style={styles.pwdBtnCancel} onPress={() => { setPwdModalVisible(false); setTimeout(() => setSignModalVisible(true), 500); }}><Text style={{color: '#FFF', fontWeight: 'bold'}}>{TXT.cancel}</Text></TouchableOpacity>
+               <TouchableOpacity style={[styles.pwdBtnSave, { backgroundColor: COLORS.primary }]} onPress={saveCertToStorage}><Text style={{color: COLORS.textDark, fontWeight: '900'}}>{TXT.saveStore}</Text></TouchableOpacity>
              </View>
           </View>
         </KeyboardAvoidingView>

@@ -174,17 +174,20 @@ export const THEME_STYLES = {
 };
 
 // Object màu hiện tại (Sẽ bị ghi đè in-place khi đổi giao diện)
-export const COLORS = { ...THEME_STYLES.obsidian };
+export const COLORS = { ...THEME_STYLES.light };
 
 // TỪ ĐIỂN DỊCH (TRANSLATIONS)
 export const TRANSLATIONS = {
   vi: {
+    // Tab bar labels
     today: "Hôm nay",
     apps: "Ứng dụng",
     search: "Tìm kiếm",
     library: "Thư viện",
     vip: "Kho VIP",
     profile: "Hồ sơ",
+
+    // Settings screen
     settings: "CÀI ĐẶT ỨNG DỤNG",
     language: "Ngôn ngữ",
     themeStyle: "Phong cách giao diện",
@@ -197,14 +200,132 @@ export const TRANSLATIONS = {
     history: "Lịch sử giao dịch",
     adminArea: "Khu vực Admin",
     langName: "Tiếng Việt",
+
+    // Additional labels for client translations
+    appStoreTitle: "Kho Ứng Dụng",
+    discoverTitle: "Khám Phá",
+    suggestedTitle: "Được Đề Xuất",
+    searchPlaceholder: "Tìm app, game...",
+    searchResult: "Kết quả tìm kiếm",
+    noResult: "Không tìm thấy kết quả nào.",
+    
+    // Sign screen
+    signTitle: "Quản Lý Ký App",
+    originalIpaTab: "File IPA Gốc",
+    signedIpaTab: "App Đã Ký",
+    emptyStore: "Kho lưu trữ trống",
+    addIpa: "Thêm File IPA",
+    manageCert: "Quản Lý Chứng Chỉ",
+    selectCert: "CHỌN CHỨNG CHỈ",
+    certStore: "KHO CHỨNG CHỈ CỦA BẠN",
+    importZip: "Nhập tệp Chứng chỉ (.zip)",
+    securedCert: "BẢO MẬT CHỨNG CHỈ",
+    pwdPlaceholder: "Mật khẩu file P12...",
+    cancel: "HỦY BỎ",
+    saveStore: "LƯU VÀO KHO",
+    
+    // Detail screen
+    rating: "ĐÁNH GIÁ",
+    size: "DUNG LƯỢNG",
+    category: "THỂ LOẠI",
+    developer: "Nhà phát triển",
+    version: "Phiên bản",
+    more: "Thêm",
+    collapse: "Thu gọn",
+    modFeatures: "Thông tin Mod / Cập nhật",
+    install: "CÀI ĐẶT",
+    loading: "Đang tải...",
+    signing: "Đang ký App...",
+    generatingOta: "Tạo OTA...",
+    done: "Hoàn tất!",
+    verSpecs: "Chi tiết phiên bản",
+    clearCache: "Dọn dẹp bộ nhớ đệm",
+    certLib: "Thư viện chứng chỉ",
+    systemSettings: "THIẾT LẬP HỆ THỐNG",
+
+    // Discover Cards
+    topApps: "Top Ứng Dụng",
+    topGames: "Top Trò Chơi",
+    bestSellers: "Bán Chạy Nhất",
+    performance: "Hiệu Suất",
+
+    // New settings fields
+    settingsSubtitle: "Tối giản & Đẳng cấp điều khiển thiết bị",
+    certificateSection: "CHỨNG CHỈ",
+    themeSection: "PHONG CÁCH GIAO DIỆN",
+    systemSettingsSection: "THIẾT LẬP HỆ THỐNG",
+    infoSection: "THÔNG TIN",
+    coreCppEngine: "Nhân C++ lõi:",
+    environmentLabel: "Môi trường:",
+    closeLabel: "ĐÓNG",
+    enterpriseLabel: "Doanh nghiệp:",
+    expirationLabel: "Hết hạn:",
+    expiredLabel: "(Hết hạn)",
+    noCertsLoaded: "Chưa nạp chứng chỉ nào.",
+    p12PasswordTitle: "Mật khẩu giải mã",
+    p12PasswordSub: "Nhập mật khẩu tệp P12 trong gói:",
+    p12PasswordPlaceholder: "Nhập mật khẩu...",
+    cancelBtn: "Hủy",
+    completeBtn: "Hoàn tất",
+    importNewCert: "Nhập chứng chỉ mới (.zip)",
+    deleteCertTitle: "Xóa Chứng Chỉ",
+    deleteCertConfirm: "Bạn chắc chắn muốn xóa chứng chỉ này khỏi máy?",
+    successLabel: "Thành công",
+    errorLabel: "Lỗi",
+
+    // New sign fields
+    signAppTitle: "Quản Lý Ký App",
+    selectIpaCert: "Vui lòng chọn đủ File IPA và Chứng chỉ để ký.",
+    readyToInstall: "Sẵn sàng cài đặt",
+    safariInstallInstructions: "Trình duyệt sẽ mở ra. Vui lòng bấm Cài Đặt trên web, sau đó QUAY LẠI APP NÀY và giữ màn hình sáng chờ đến khi tải xong.",
+    openSafariBtn: "Mở Safari",
+    signSuccessTitle: "🎉 KÝ THÀNH CÔNG!",
+    signSuccessSub: "File IPA mới đã được tạo và sẵn sàng cài đặt!",
+    laterBtn: "Để sau",
+    installNowBtn: "Cài Đặt Ngay",
+    signFailure: "Quá trình nhúng chứng chỉ thất bại.",
+    coreSigningText: "ĐANG ÉP XUNG LÕI IPA...",
+    tapToSignNow: "CHẠM ĐỂ KÝ NGAY",
+    unzippingText: "Đang tải Tệp...",
+    noCertsSavedText: "Chưa có chứng chỉ nào được lưu.",
+    shareFile: "Chia sẻ File",
+    deleteFile: "Xóa File",
+    deleteFileConfirm: "Xóa file này?",
+    originalIpaShort: "File IPA Gốc",
+    signedIpaShort: "App Đã Ký",
+
+    // New account fields
+    authTitleLogin: "Đăng Nhập",
+    authTitleRegister: "Đăng Ký",
+    cloudSystemSub: "Hệ thống lưu trữ IPAVIET Cloud",
+    fullnamePlaceholder: "Tên hiển thị",
+    passwordPlaceholder: "Mật khẩu",
+    loginBtnText: "VÀO HỆ THỐNG",
+    registerBtnText: "TẠO TÀI KHOẢN",
+    switchLoginText: "Đã có tài khoản? Đăng nhập",
+    switchRegisterText: "Chưa có tài khoản? Đăng ký ngay",
+    systemNotificationTitle: "Thông Báo Hệ Thống",
+    understoodBtn: "Đã Hiểu",
+    customerGuest: "Khách hàng",
+    setupThemeRow: "Thiết lập & Giao diện",
+    openLabel: "Mở",
+    cloudAccountHeader: "TÀI KHOẢN CLOUD",
+    noVipStatus: "Chưa có VIP",
+    daysRemaining: " ngày",
+    confirmLogoutTitle: "Đăng xuất",
+    confirmLogoutMsg: "Rời khỏi hệ thống?",
+    confirmExit: "Thoát"
   },
   en: {
+    // Tab bar labels
     today: "Today",
     apps: "Apps",
     search: "Search",
     library: "Library",
     vip: "VIP Store",
     profile: "Profile",
+
+    // Settings screen
     settings: "APP SETTINGS",
     language: "Language",
     themeStyle: "Aesthetic Theme",
@@ -217,6 +338,121 @@ export const TRANSLATIONS = {
     history: "Transaction History",
     adminArea: "Admin Control",
     langName: "English",
+
+    // Additional labels for client translations
+    appStoreTitle: "App Store",
+    discoverTitle: "Discover",
+    suggestedTitle: "Recommended",
+    searchPlaceholder: "Search apps, games...",
+    searchResult: "Search Results",
+    noResult: "No results found.",
+
+    // Sign screen
+    signTitle: "Sign App Manager",
+    originalIpaTab: "Original IPA Files",
+    signedIpaTab: "Signed Apps",
+    emptyStore: "Storage is empty",
+    addIpa: "Add IPA File",
+    manageCert: "Manage Certificates",
+    selectCert: "SELECT CERTIFICATE",
+    certStore: "YOUR CERTIFICATES",
+    importZip: "Import Certificate (.zip)",
+    securedCert: "SECURE CERTIFICATE",
+    pwdPlaceholder: "P12 file password...",
+    cancel: "CANCEL",
+    saveStore: "SAVE TO STORE",
+
+    // Detail screen
+    rating: "RATING",
+    size: "SIZE",
+    category: "CATEGORY",
+    developer: "Developer",
+    version: "Version",
+    more: "More",
+    collapse: "Collapse",
+    modFeatures: "Mod Info / Updates",
+    install: "INSTALL",
+    loading: "Loading...",
+    signing: "Signing App...",
+    generatingOta: "Generating OTA...",
+    done: "Done!",
+    verSpecs: "Version Details",
+    clearCache: "Clear Cache",
+    certLib: "Certificate Library",
+    systemSettings: "SYSTEM SETTINGS",
+
+    // Discover Cards
+    topApps: "Top Apps",
+    topGames: "Top Games",
+    bestSellers: "Best Sellers",
+    performance: "Performance",
+
+    // New settings fields
+    settingsSubtitle: "Minimal & Premium device control",
+    certificateSection: "CERTIFICATE",
+    themeSection: "AESTHETIC THEME",
+    systemSettingsSection: "SYSTEM SETTINGS",
+    infoSection: "INFORMATION",
+    coreCppEngine: "C++ Core Engine:",
+    environmentLabel: "Environment:",
+    closeLabel: "CLOSE",
+    enterpriseLabel: "Enterprise:",
+    expirationLabel: "Expiration:",
+    expiredLabel: "(Expired)",
+    noCertsLoaded: "No certificates loaded.",
+    p12PasswordTitle: "Decryption Password",
+    p12PasswordSub: "Enter P12 password in package:",
+    p12PasswordPlaceholder: "Enter password...",
+    cancelBtn: "Cancel",
+    completeBtn: "Complete",
+    importNewCert: "Import new certificate (.zip)",
+    deleteCertTitle: "Delete Certificate",
+    deleteCertConfirm: "Are you sure you want to delete this certificate from device?",
+    successLabel: "Success",
+    errorLabel: "Error",
+
+    // New sign fields
+    signAppTitle: "Sign App Manager",
+    selectIpaCert: "Please select both IPA file and Certificate to sign.",
+    readyToInstall: "Ready to Install",
+    safariInstallInstructions: "Browser will open. Please click Install on web, then RETURN TO THIS APP and keep screen active until download finishes.",
+    openSafariBtn: "Open Safari",
+    signSuccessTitle: "🎉 SIGNED SUCCESSFULLY!",
+    signSuccessSub: "New IPA file created and ready to install!",
+    laterBtn: "Later",
+    installNowBtn: "Install Now",
+    signFailure: "Certificate injection process failed.",
+    coreSigningText: "INJECTING IPA CORE...",
+    tapToSignNow: "TAP TO SIGN NOW",
+    unzippingText: "Extracting package...",
+    noCertsSavedText: "No certificates saved.",
+    shareFile: "Share File",
+    deleteFile: "Delete File",
+    deleteFileConfirm: "Delete this file?",
+    originalIpaShort: "Original IPA",
+    signedIpaShort: "Signed App",
+
+    // New account fields
+    authTitleLogin: "Log In",
+    authTitleRegister: "Register",
+    cloudSystemSub: "IPAVIET Cloud Storage System",
+    fullnamePlaceholder: "Display name",
+    passwordPlaceholder: "Password",
+    loginBtnText: "ENTER SYSTEM",
+    registerBtnText: "CREATE ACCOUNT",
+    switchLoginText: "Already have an account? Log In",
+    switchRegisterText: "Don't have an account? Register now",
+    systemNotificationTitle: "System Notification",
+    understoodBtn: "Understood",
+    customerGuest: "Guest",
+    setupThemeRow: "Settings & Interface",
+    openLabel: "Open",
+    cloudAccountHeader: "CLOUD ACCOUNT",
+    noVipStatus: "No VIP",
+    daysRemaining: " days",
+    confirmLogoutTitle: "Log Out",
+    confirmLogoutMsg: "Are you sure you want to log out?",
+    confirmExit: "Exit"
   }
 };
 
@@ -247,7 +483,7 @@ export const loadTheme = async () => {
     if (style && THEME_STYLES[style]) {
       Object.assign(COLORS, THEME_STYLES[style]);
     } else {
-      Object.assign(COLORS, THEME_STYLES.obsidian);
+      Object.assign(COLORS, THEME_STYLES.light);
     }
   } catch (e) {
     console.error("Lỗi loadTheme:", e);
