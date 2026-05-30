@@ -38,6 +38,6 @@ Pod::Spec.new do |s|
     'CLANG_CXX_LANGUAGE_STANDARD' => 'gnu++17',
     'CLANG_CXX_LIBRARY' => 'libc++',
     'OTHER_CPLUSPLUSFLAGS' => '-fobjc-arc',
-    'HEADER_SEARCH_PATHS' => '"${PODS_TARGET_SRCROOT}/ios" "${PODS_TARGET_SRCROOT}/ios/minizip"'
+    'HEADER_SEARCH_PATHS' => '"${PODS_TARGET_SRCROOT}" "${PODS_TARGET_SRCROOT}/common" "${PODS_TARGET_SRCROOT}/minizip" "${PODS_TARGET_SRCROOT}/ios" "${PODS_TARGET_SRCROOT}/ios/minizip"'
   }
 end
