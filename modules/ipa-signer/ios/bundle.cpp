@@ -408,7 +408,7 @@ bool ZBundle::ModifyPluginsBundleId(const string& strOldBundleId, const string& 
 	return true;
 }
 
-bool ZBundle::ModifyBundleInfo(const string& strBundleId, const string& strBundleVersion, const string& strDisplayName)
+bool ZBundle::ModifyBundleInfo(const string& strBundleId, const string& strBundleVersion, const string& strDisplayName, const string& strIconPath)
 {
 	jvalue jvInfo;
 	if (!jvInfo.read_plist_from_file("%s/Info.plist", m_strAppFolder.c_str())) {
@@ -469,6 +469,29 @@ bool ZBundle::ModifyBundleInfo(const string& strBundleId, const string& strBundl
 		ZLog::PrintV(">>> BundleVersion: %s -> %s\n", strOldBundleVersion.c_str(), strBundleVersion.c_str());
 	}
 
+	if (!strIconPath.empty()) {
+		string strDestIconPath = m_strAppFolder + "/CustomAppIcon.png";
+		if (ZFile::CopyFile(strIconPath.c_str(), strDestIconPath.c_str())) {
+			ZLog::PrintV(">>> Copied custom icon: %s -> %s\n", strIconPath.c_str(), strDestIconPath.c_str());
+			
+			jvalue jvPrimaryIcon(jvalue::E_OBJECT);
+			jvalue jvIconFiles(jvalue::E_ARRAY);
+			jvIconFiles.push_back("CustomAppIcon");
+			
+			jvPrimaryIcon["CFBundleIconFiles"] = jvIconFiles;
+			jvPrimaryIcon["CFBundleIconName"] = "CustomAppIcon";
+			
+			jvalue jvIcons(jvalue::E_OBJECT);
+			jvIcons["CFBundlePrimaryIcon"] = jvPrimaryIcon;
+			
+			jvInfo["CFBundleIcons"] = jvIcons;
+			jvInfo["CFBundleIcons~ipad"] = jvIcons;
+			jvInfo["CFBundleIconFile"] = "CustomAppIcon";
+		} else {
+			ZLog::ErrorV(">>> Failed to copy custom icon from %s to %s\n", strIconPath.c_str(), strDestIconPath.c_str());
+		}
+	}
+
 	jvInfo.style_write_plist_to_file("%s/Info.plist", m_strAppFolder.c_str());
 	return true;
 }
@@ -481,7 +504,8 @@ bool ZBundle::SignFolder(ZSignAsset* pSignAsset,
 							const vector<string>& arrInjectDylibs,
 							bool bForce,
 							bool bWeakInject,
-							bool bEnableCache)
+							bool bEnableCache,
+							const string& strIconPath)
 {
 	m_bForceSign = bForce;
 	m_pSignAsset = pSignAsset;
@@ -495,9 +519,9 @@ bool ZBundle::SignFolder(ZSignAsset* pSignAsset,
 		return false;
 	}
 
-	if (!strBundleId.empty() || !strDisplayName.empty() || !strBundleVersion.empty()) {
+	if (!strBundleId.empty() || !strDisplayName.empty() || !strBundleVersion.empty() || !strIconPath.empty()) {
 		m_bForceSign = true;
-		if (!ModifyBundleInfo(strBundleId, strBundleVersion, strDisplayName)) {
+		if (!ModifyBundleInfo(strBundleId, strBundleVersion, strDisplayName, strIconPath)) {
 			return false;
 		}
 	}

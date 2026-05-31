@@ -17,14 +17,15 @@ public:
 					const vector<string>& arrDylibFiles,
 					bool bForce,
 					bool bWeakInject,
-					bool bEnableCache);
+					bool bEnableCache,
+					const string& strIconPath = "");
 
 private:
 	bool SignNode(jvalue& jvNode);
 	void GetNodeChangedFiles(jvalue& jvNode);
 	void GetChangedFiles(jvalue& jvNode, vector<string>& arrChangedFiles);
 	bool ModifyPluginsBundleId(const string& strOldBundleId, const string& strNewBundleId);
-	bool ModifyBundleInfo(const string& strBundleId, const string& strBundleVersion, const string& strDisplayName);
+	bool ModifyBundleInfo(const string& strBundleId, const string& strBundleVersion, const string& strDisplayName, const string& strIconPath);
 
 private:
 	bool FindAppFolder(const string& strFolder, string& strAppFolder);

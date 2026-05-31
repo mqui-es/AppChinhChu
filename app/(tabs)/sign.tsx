@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -18,10 +18,11 @@ const IpaSigner = (() => {
   }
 })();
 
-import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical } from 'lucide-react-native';
+import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical, Sliders, ChevronDown, ImagePlus } from 'lucide-react-native';
 import { COLORS, useThemeUpdate, TXT } from '../../constants/theme';
 import { startStaticServer } from '../../utils/staticServer';
 import * as Linking from 'expo-linking';
+import * as Haptics from 'expo-haptics';
 
 const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.dev";
 
@@ -140,6 +141,76 @@ export default function SignScreen() {
   const [tempZipData, setTempZipData] = useState<any>(null);
   const [certPassword, setCertPassword] = useState('');
   const [isUnzipping, setIsUnzipping] = useState(false);
+
+  // Advanced Signing Options States
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customAppName, setCustomAppName] = useState('');
+  const [customBundleId, setCustomBundleId] = useState('');
+  const [customIconUri, setCustomIconUri] = useState<string | null>(null);
+  const [customIconName, setCustomIconName] = useState('');
+  const [isCloning, setIsCloning] = useState(false);
+  const [isLoadingIpaInfo, setIsLoadingIpaInfo] = useState(false);
+  const [originalIpaInfo, setOriginalIpaInfo] = useState<{ bundleId: string; appName: string } | null>(null);
+
+  const handleSelectIpa = async (item: LocalFile) => {
+    setSelectedIpa(item);
+    setSignModalVisible(true);
+    
+    // Reset Advanced Options states
+    setShowAdvanced(false);
+    setCustomAppName('');
+    setCustomBundleId('');
+    setCustomIconUri(null);
+    setCustomIconName('');
+    setIsCloning(false);
+    setOriginalIpaInfo(null);
+    setIsLoadingIpaInfo(true);
+    
+    try {
+      const { getIpaInfo } = require('../../modules/ipa-signer');
+      const info = await getIpaInfo(item.uri);
+      if (info && info.bundleId && info.appName) {
+        setOriginalIpaInfo(info);
+        setCustomAppName(info.appName);
+        setCustomBundleId(info.bundleId);
+      }
+    } catch (e) {
+      console.warn("Lỗi đọc thông tin IPA:", e);
+      const nameWithoutExt = item.name.replace(/\.ipa$/i, '');
+      setCustomAppName(nameWithoutExt);
+      setCustomBundleId('com.ipaviet.app');
+    } finally {
+      setIsLoadingIpaInfo(false);
+    }
+  };
+
+  const pickCustomIcon = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/png',
+        copyToCacheDirectory: true
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      setCustomIconUri(asset.uri);
+      setCustomIconName(asset.name);
+    } catch (e) {
+      Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to select icon.' : 'Không thể chọn ảnh làm logo.');
+    }
+  };
+
+  const handleToggleCloning = (val: boolean) => {
+    setIsCloning(val);
+    if (val) {
+      if (customBundleId && !customBundleId.endsWith('.clone')) {
+        setCustomBundleId(prev => prev + '.clone');
+      }
+    } else {
+      if (customBundleId && customBundleId.endsWith('.clone')) {
+        setCustomBundleId(prev => prev.slice(0, -6));
+      }
+    }
+  };
 
   // 1. ÉP APPLE HIỆN THƯ MỤC: Tạo một file hiển thị rõ ràng
   const forceIOSFolderCreation = async () => {
@@ -375,7 +446,16 @@ export default function SignScreen() {
     
     setIsSigning(true);
     try {
-      const result = await IpaSigner.signAppOffline(selectedIpa.uri, selectedCert.p12Uri, selectedCert.provUri, selectedCert.password);
+      const { signAppOffline } = require('../../modules/ipa-signer');
+      const result = await signAppOffline(
+        selectedIpa.uri, 
+        selectedCert.p12Uri, 
+        selectedCert.provUri, 
+        selectedCert.password,
+        customBundleId !== originalIpaInfo?.bundleId ? customBundleId : '',
+        customAppName !== originalIpaInfo?.appName ? customAppName : '',
+        customIconUri || ''
+      );
       setIsSigning(false);
       setSignModalVisible(false);
 
@@ -437,7 +517,7 @@ export default function SignScreen() {
       </View>
       <View style={[styles.actionGroup, { borderColor: COLORS.border }]}>
         {activeTab === 'ipa' && (
-          <TouchableOpacity style={[styles.iconBtn, {backgroundColor: 'rgba(50, 215, 75, 0.15)', borderColor: 'rgba(50, 215, 75, 0.3)', borderWidth: 1}]} onPress={() => { setSelectedIpa(item); setSignModalVisible(true); }}>
+          <TouchableOpacity style={[styles.iconBtn, {backgroundColor: 'rgba(50, 215, 75, 0.15)', borderColor: 'rgba(50, 215, 75, 0.3)', borderWidth: 1}]} onPress={() => handleSelectIpa(item)}>
             <Wrench color="#32D74B" size={20} />
           </TouchableOpacity>
         )}
@@ -580,6 +660,123 @@ export default function SignScreen() {
                   </TouchableOpacity>
                 )
               })}
+
+              {selectedIpa && (
+                <>
+                  <TouchableOpacity 
+                    style={[styles.advancedHeader, { borderColor: COLORS.border }]} 
+                    activeOpacity={0.7} 
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowAdvanced(!showAdvanced);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Sliders color={COLORS.primary} size={18} />
+                      <Text style={[styles.advancedHeaderText, { color: COLORS.text }]}>
+                        {TXT.langName === 'English' ? 'Advanced Options (Optional)' : 'Tùy chọn ký nâng cao (Không bắt buộc)'}
+                      </Text>
+                    </View>
+                    <ChevronDown color={COLORS.textMuted} size={18} style={{ transform: [{ rotate: showAdvanced ? '180deg' : '0deg' }] }} />
+                  </TouchableOpacity>
+
+                  {showAdvanced && (
+                    <View style={[styles.advancedContent, { borderColor: COLORS.border }]}>
+                      {isLoadingIpaInfo ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 }}>
+                          <ActivityIndicator size="small" color={COLORS.primary} />
+                          <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+                            {TXT.langName === 'English' ? 'Reading IPA info...' : 'Đang đọc thông tin tệp IPA...'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{ gap: 12, width: '100%', paddingHorizontal: 4 }}>
+                          {/* Tên ứng dụng */}
+                          <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: COLORS.textMuted }]}>
+                              {TXT.langName === 'English' ? 'New App Name' : 'Tên ứng dụng mới'}
+                            </Text>
+                            <TextInput
+                              style={[styles.textInput, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
+                              value={customAppName}
+                              onChangeText={setCustomAppName}
+                              placeholder={originalIpaInfo?.appName || "VSign App"}
+                              placeholderTextColor="#666"
+                            />
+                          </View>
+
+                          {/* Bundle ID */}
+                          <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: COLORS.textMuted }]}>
+                              {TXT.langName === 'English' ? 'New Bundle ID' : 'Bundle ID mới'}
+                            </Text>
+                            <TextInput
+                              style={[styles.textInput, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
+                              value={customBundleId}
+                              onChangeText={setCustomBundleId}
+                              placeholder={originalIpaInfo?.bundleId || "com.company.app"}
+                              placeholderTextColor="#666"
+                              autoCapitalize="none"
+                              autoCorrect={false}
+                            />
+                          </View>
+
+                          {/* Logo/Icon Picker */}
+                          <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: COLORS.textMuted }]}>
+                              {TXT.langName === 'English' ? 'New App Logo' : 'Logo ứng dụng mới'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                              {customIconUri ? (
+                                <View style={[styles.iconPreviewBox, { borderColor: COLORS.primary }]}>
+                                  <Image source={{ uri: customIconUri }} style={{ width: 44, height: 44, borderRadius: 10 }} />
+                                  <TouchableOpacity 
+                                    style={styles.removeIconBtn}
+                                    onPress={() => {
+                                      setCustomIconUri(null);
+                                      setCustomIconName('');
+                                    }}
+                                  >
+                                    <X color="#FFF" size={10} />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : null}
+                              <TouchableOpacity 
+                                style={[styles.pickIconBtn, { backgroundColor: COLORS.surfaceCard, borderColor: COLORS.border, borderWidth: 1 }]}
+                                onPress={pickCustomIcon}
+                              >
+                                <ImagePlus color={COLORS.primary} size={18} />
+                                <Text style={[styles.pickIconText, { color: COLORS.text }]} numberOfLines={1}>
+                                  {customIconUri ? customIconName : (TXT.langName === 'English' ? 'Choose PNG Image' : 'Chọn hình ảnh PNG')}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {/* Nhân bản ứng dụng */}
+                          <View style={[styles.rowItemNoPress, { paddingHorizontal: 0, paddingVertical: 8 }]}>
+                            <View style={{ gap: 2 }}>
+                              <Text style={[styles.rowLabel, { color: COLORS.text, fontSize: 14 }]}>
+                                {TXT.langName === 'English' ? 'Clone Application' : 'Nhân bản ứng dụng'}
+                              </Text>
+                              <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
+                                {TXT.langName === 'English' ? 'Install alongside the original app' : 'Cho phép cài đặt song song với app gốc'}
+                              </Text>
+                            </View>
+                            <TouchableOpacity 
+                              style={[styles.switchWrapper, { backgroundColor: isCloning ? COLORS.success : '#333' }]}
+                              activeOpacity={0.8}
+                              onPress={() => handleToggleCloning(!isCloning)}
+                            >
+                              <View style={[styles.switchDot, { transform: [{ translateX: isCloning ? 20 : 2 }] }]} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
             </ScrollView>
 
             {selectedIpa && (
@@ -659,5 +856,102 @@ const styles = StyleSheet.create({
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   menuBox: { position: 'absolute', top: 100, right: 20, borderRadius: 16, width: 220, borderWidth: 1, shadowColor: '#000', shadowOffset: {width: 0, height: 5}, shadowOpacity: 0.5, shadowRadius: 10, overflow: 'hidden' },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 15 },
-  menuText: { fontSize: 16, fontWeight: '600' }
+  menuText: { fontSize: 16, fontWeight: '600' },
+  advancedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingVertical: 14,
+    borderTopWidth: 0.8,
+    borderBottomWidth: 0.8,
+    marginTop: 15,
+  },
+  advancedHeaderText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  advancedContent: {
+    width: '100%',
+    paddingVertical: 15,
+    borderBottomWidth: 0.8,
+    alignItems: 'center',
+  },
+  inputGroup: {
+    width: '100%',
+    gap: 6,
+    marginBottom: 10,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  textInput: {
+    width: '100%',
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 0.8,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  pickIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 0.8,
+    paddingHorizontal: 14,
+  },
+  pickIconText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  iconPreviewBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    position: 'relative',
+  },
+  removeIconBtn: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#FF453A',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  switchWrapper: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  switchDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+    elevation: 2,
+  },
+  rowItemNoPress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 10,
+  }
 });

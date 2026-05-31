@@ -3,6 +3,7 @@
     "name": "AppChinhChu",
     "slug": "AppChinhChu",
     "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
     "plugins": [
       "expo-router"
     ],

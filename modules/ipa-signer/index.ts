@@ -3,21 +3,31 @@ import { requireNativeModule } from 'expo-modules-core';
 // Khởi tạo lõi Native
 const IpaSigner = requireNativeModule('IpaSigner');
 
-// Mở cổng nhận 4 tham số: File IPA, File P12, File Prov và Mật khẩu
+// Mở cổng nhận các tham số ký IPA ngoại tuyến tùy biến
 export async function signAppOffline(
   ipaPath: string, 
   p12Path: string, 
   provPath: string, 
-  password: string
+  password: string,
+  newBundleId?: string,
+  newAppName?: string,
+  newIconPath?: string
 ): Promise<{ outputPath: string; success: boolean; bundleId?: string }> {
-  // Bắn dữ liệu xuống thẳng lõi Swift/C++ của iOS
-  return await IpaSigner.signAppOffline(ipaPath, p12Path, provPath, password);
+  // Gửi xuống thẳng lõi Swift/C++ của iOS với các cấu hình tùy biến
+  return await IpaSigner.signAppOffline(
+    ipaPath, 
+    p12Path, 
+    provPath, 
+    password, 
+    newBundleId || '', 
+    newAppName || '', 
+    newIconPath || ''
+  );
 }
 
-// Tính năng Tách nền ảnh bằng xử lý pixel native siêu nhanh
-export async function removeBackground(
-  imagePath: string,
-  mode: 'white' | 'black'
-): Promise<{ outputPath: string; success: boolean }> {
-  return await IpaSigner.removeBackground(imagePath, mode);
+// Hàm đọc siêu dữ liệu IPA (BundleID, AppName) trước khi ký
+export async function getIpaInfo(
+  ipaPath: string
+): Promise<{ bundleId: string; appName: string }> {
+  return await IpaSigner.getIpaInfo(ipaPath);
 }

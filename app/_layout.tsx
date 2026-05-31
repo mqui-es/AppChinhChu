@@ -12,9 +12,7 @@ export default function RootLayout() {
   const logoScale = useRef(new Animated.Value(0.9)).current; // Phóng to cực kỳ chậm từ 0.9 lên 1.0
   const logoOpacity = useRef(new Animated.Value(0)).current;
 
-  // Hào quang hơi thở phía sau logo
-  const auraScale = useRef(new Animated.Value(1.0)).current;
-  const auraOpacity = useRef(new Animated.Value(0)).current;
+
 
   // Slogan & Credits
   const textOpacity = useRef(new Animated.Value(0)).current;
@@ -30,39 +28,7 @@ export default function RootLayout() {
     // 1. Khởi tạo theme và ngôn ngữ
     initAppThemeAndLang();
 
-    // 2. Định nghĩa hiệu ứng thở của quầng sáng bạc phía sau logo
-    const auraLoop = Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(auraScale, {
-            toValue: 1.15,
-            duration: 4000,
-            easing: Easing.bezier(0.4, 0, 0.6, 1),
-            useNativeDriver: true,
-          }),
-          Animated.timing(auraScale, {
-            toValue: 0.95,
-            duration: 4000,
-            easing: Easing.bezier(0.4, 0, 0.6, 1),
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.timing(auraOpacity, {
-            toValue: 0.4,
-            duration: 4000,
-            easing: Easing.bezier(0.4, 0, 0.6, 1),
-            useNativeDriver: true,
-          }),
-          Animated.timing(auraOpacity, {
-            toValue: 0.15,
-            duration: 4000,
-            easing: Easing.bezier(0.4, 0, 0.6, 1),
-            useNativeDriver: true,
-          }),
-        ])
-      ])
-    );
+
 
     // 3. Chuỗi hoạt họa xuất hiện tối giản sang trọng (Apple Style)
     Animated.sequence([
@@ -78,12 +44,6 @@ export default function RootLayout() {
           toValue: 1.0,
           duration: 2000,
           easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-          useNativeDriver: true,
-        }),
-        // Hào quang bắt đầu sáng nhẹ
-        Animated.timing(auraOpacity, {
-          toValue: 0.25,
-          duration: 1800,
           useNativeDriver: true,
         })
       ]),
@@ -108,10 +68,7 @@ export default function RootLayout() {
           useNativeDriver: true,
         }),
       ])
-    ]).start(() => {
-      // Bắt đầu chu kỳ thở nhịp nhàng của quầng sáng sau khi logo ổn định
-      auraLoop.start();
-    });
+    ]).start();
 
     // 4. Biến mất sau 4.0 giây bằng cú thu nhỏ tấm nền (Sheet-Shrink Exit) cực sang
     const timer = setTimeout(() => {
@@ -129,14 +86,12 @@ export default function RootLayout() {
           useNativeDriver: true,
         })
       ]).start(() => {
-        auraLoop.stop();
         setShowIntro(false);
       });
     }, 3800);
 
     return () => {
       clearTimeout(timer);
-      auraLoop.stop();
     };
   }, []);
 
@@ -169,14 +124,7 @@ export default function RootLayout() {
           />
 
           <View style={styles.splashContent}>
-            {/* Ambient Aura behind logo */}
-            <Animated.View style={[
-              styles.ambientAura,
-              {
-                opacity: auraOpacity,
-                transform: [{ scale: auraScale }],
-              }
-            ]} />
+
 
             {/* Logo VSign Wrapper (Basic & Premium) */}
             <Animated.View style={[
@@ -222,18 +170,7 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     backgroundColor: '#060608',
   },
-  ambientAura: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 60,
-    elevation: 8,
-  },
+
   splashContent: {
     alignItems: 'center',
     justifyContent: 'center',

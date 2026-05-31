@@ -34,6 +34,7 @@ const struct option options[] = {
     {"check", no_argument, NULL, 'C'},
     {"quiet", no_argument, NULL, 'q'},
     {"help", no_argument, NULL, 'h'},
+    {"icon", required_argument, NULL, 'g'},
     {}
 };
 
@@ -90,13 +91,14 @@ int zsign_main(int argc, char* argv[])
     string strBundleVersion;
     string strOutputFile;
     string strDisplayName;
+    string strIconPath;
     string strEntitleFile;
     vector<string> arrDylibFiles;
     string strTempFolder = ZFile::GetTempFolder();
 
     int opt = 0;
     int argslot = -1;
-    while (-1 != (opt = getopt_long(argc, argv, "dfva2hiqwCc:k:m:o:p:e:b:n:z:l:t:r:",
+    while (-1 != (opt = getopt_long(argc, argv, "dfva2hiqwCc:k:m:o:p:e:b:n:z:l:t:r:g:",
         options, &argslot))) {
         switch (opt) {
         case 'd':
@@ -146,6 +148,9 @@ int zsign_main(int argc, char* argv[])
             break;
         case 'w':
             bWeakInject = true;
+            break;
+        case 'g':
+            strIconPath = optarg;
             break;
         case 't':
             strTempFolder = ZFile::GetFullPath(optarg);
@@ -277,7 +282,7 @@ int zsign_main(int argc, char* argv[])
     //sign
     atimer.Reset();
     ZBundle bundle;
-    bool bRet = bundle.SignFolder(&zsa, strFolder, strBundleId, strBundleVersion, strDisplayName, arrDylibFiles, bForce, bWeakInject, bEnableCache);
+    bool bRet = bundle.SignFolder(&zsa, strFolder, strBundleId, strBundleVersion, strDisplayName, arrDylibFiles, bForce, bWeakInject, bEnableCache, strIconPath);
     atimer.PrintResult(bRet, ">>> Signed %s!", bRet ? "OK" : "Failed");
 
     //archive

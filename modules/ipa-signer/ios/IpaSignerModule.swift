@@ -9,17 +9,25 @@ func zsign_wrapper(
   _ p12: UnsafePointer<Int8>,
   _ prov: UnsafePointer<Int8>,
   _ pass: UnsafePointer<Int8>,
-  _ out: UnsafePointer<Int8>
+  _ out: UnsafePointer<Int8>,
+  _ bundleId: UnsafePointer<Int8>,
+  _ displayName: UnsafePointer<Int8>,
+  _ iconPath: UnsafePointer<Int8>
 ) -> Int32
+
+// Khai báo liên kết với hàm get_ipa_info_wrapper trong ZSignWrapper.mm
+@_silgen_name("get_ipa_info_wrapper")
+func get_ipa_info_wrapper(
+  _ ipa: UnsafePointer<Int8>,
+  _ tempDir: UnsafePointer<Int8>
+) -> UnsafePointer<Int8>
 
 // Hàm tiện ích: làm sạch đường dẫn file
 private func cleanPath(_ rawPath: String) -> String {
   var path = rawPath
-  // Xóa tiền tố "file://" nếu có
   if path.hasPrefix("file://") {
     path = String(path.dropFirst(7))
   }
-  // Giải mã ký tự URL encoding (%20, v.v.)
   path = path.removingPercentEncoding ?? path
   return path
 }
@@ -54,15 +62,57 @@ public class IpaSignerModule: Module {
       }
     }
 
-
-    AsyncFunction("signAppOffline") { (ipaPath: String, p12Path: String, provPath: String, password: String, promise: Promise) in
+    // Đọc thông tin IPA (Bundle ID và App Name)
+    AsyncFunction("getIpaInfo") { (ipaPath: String, promise: Promise) in
+      let cleanIpaPath = cleanPath(ipaPath)
+      let fm = FileManager.default
       
-      // Làm sạch đường dẫn
+      guard fm.fileExists(atPath: cleanIpaPath) else {
+        promise.reject("FILE_NOT_FOUND", "Không tìm thấy file IPA: \(cleanIpaPath)")
+        return
+      }
+      
+      let tempDir = NSTemporaryDirectory()
+      
+      DispatchQueue.global(qos: .userInitiated).async {
+        let infoPtr = get_ipa_info_wrapper(cleanIpaPath, tempDir)
+        let infoStr = String(cString: infoPtr)
+        
+        DispatchQueue.main.async {
+          if infoStr.isEmpty {
+            promise.reject("READ_ERROR", "Không thể đọc thông tin file IPA.")
+          } else {
+            let parts = infoStr.components(separatedBy: "///")
+            if parts.count >= 2 {
+              promise.resolve([
+                "bundleId": parts[0],
+                "appName": parts[1]
+              ])
+            } else {
+              promise.reject("READ_ERROR", "Thông tin file IPA không đúng định dạng.")
+            }
+          }
+        }
+      }
+    }
+
+    // Ký IPA ngoại tuyến với các tùy chọn tùy biến
+    AsyncFunction("signAppOffline") { (
+      ipaPath: String, 
+      p12Path: String, 
+      provPath: String, 
+      password: String, 
+      newBundleId: String, 
+      newAppName: String, 
+      newIconPath: String, 
+      promise: Promise
+    ) in
+      
       let cleanIpaPath = cleanPath(ipaPath)
       let cleanP12Path = cleanPath(p12Path)
       let cleanProvPath = cleanPath(provPath)
+      let cleanIconPath = newIconPath.isEmpty ? "" : cleanPath(newIconPath)
       
-      // Kiểm tra file tồn tại trước khi ký
       let fm = FileManager.default
       
       guard fm.fileExists(atPath: cleanIpaPath) else {
@@ -80,14 +130,27 @@ public class IpaSignerModule: Module {
         return
       }
       
-      // Tạo đường dẫn output trong Documents directory
+      if !cleanIconPath.isEmpty && !fm.fileExists(atPath: cleanIconPath) {
+        promise.reject("FILE_NOT_FOUND", "Không tìm thấy file Logo mới: \(cleanIconPath)")
+        return
+      }
+      
       let documentDirectory = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
       let outputFilename = "signed_app_\(Int(Date().timeIntervalSince1970)).ipa"
       let outputFilePath = documentDirectory.appendingPathComponent(outputFilename).path
       
-      // Thực thi việc ký bằng C++ zsign (trong background thread để không block UI)
       DispatchQueue.global(qos: .userInitiated).async {
-        let result = zsign_wrapper(cleanIpaPath, cleanP12Path, cleanProvPath, password, outputFilePath)
+        // Thực thi ký bằng C++ zsign với các tùy chọn nâng cao
+        let result = zsign_wrapper(
+          cleanIpaPath, 
+          cleanP12Path, 
+          cleanProvPath, 
+          password, 
+          outputFilePath, 
+          newBundleId, 
+          newAppName, 
+          cleanIconPath
+        )
         
         DispatchQueue.main.async {
           if result != 0 {
@@ -102,7 +165,6 @@ public class IpaSignerModule: Module {
             }
             promise.reject("SIGN_ERROR", errorMessage)
           } else {
-            // Kiểm tra file output thực sự được tạo ra
             if fm.fileExists(atPath: outputFilePath) {
               let bundleIdPath = outputFilePath + ".bundleid.txt"
               var bundleId = "com.ipaviet.app"
@@ -122,96 +184,6 @@ public class IpaSignerModule: Module {
             }
           }
         }
-      }
-    }
-
-    AsyncFunction("removeBackground") { (imagePath: String, mode: String, promise: Promise) in
-      let cleanImgPath = cleanPath(imagePath)
-      let fm = FileManager.default
-      guard fm.fileExists(atPath: cleanImgPath) else {
-        promise.reject("FILE_NOT_FOUND", "Không tìm thấy file ảnh: \(cleanImgPath)")
-        return
-      }
-      
-      guard let image = UIImage(contentsOfFile: cleanImgPath), let cgImage = image.cgImage else {
-        promise.reject("INVALID_IMAGE", "File không phải là ảnh hợp lệ hoặc không thể đọc.")
-        return
-      }
-      
-      let width = cgImage.width
-      let height = cgImage.height
-      let colorSpace = CGColorSpaceCreateDeviceRGB()
-      
-      var rawData = [UInt8](repeating: 0, count: width * height * 4)
-      let bytesPerPixel = 4
-      let bytesPerRow = bytesPerPixel * width
-      let bitsPerComponent = 8
-      
-      guard let context = CGContext(
-        data: &rawData,
-        width: width,
-        height: height,
-        bitsPerComponent: bitsPerComponent,
-        bytesPerRow: bytesPerRow,
-        space: colorSpace,
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
-      ) else {
-        promise.reject("CONTEXT_ERROR", "Không thể tạo đồ họa xử lý ảnh.")
-        return
-      }
-      
-      context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-      
-      let threshold: Int = 40 // Tự động làm sạch viền
-      
-      if mode == "white" {
-        for y in 0..<height {
-          for x in 0..<width {
-            let byteIndex = (bytesPerRow * y) + x * bytesPerPixel
-            let r = Int(rawData[byteIndex])
-            let g = Int(rawData[byteIndex + 1])
-            let b = Int(rawData[byteIndex + 2])
-            if r >= (255 - threshold) && g >= (255 - threshold) && b >= (255 - threshold) {
-              rawData[byteIndex + 3] = 0
-            }
-          }
-        }
-      } else if mode == "black" {
-        for y in 0..<height {
-          for x in 0..<width {
-            let byteIndex = (bytesPerRow * y) + x * bytesPerPixel
-            let r = Int(rawData[byteIndex])
-            let g = Int(rawData[byteIndex + 1])
-            let b = Int(rawData[byteIndex + 2])
-            if r <= threshold && g <= threshold && b <= threshold {
-              rawData[byteIndex + 3] = 0
-            }
-          }
-        }
-      }
-      
-      guard let newCGImage = context.makeImage() else {
-        promise.reject("IMAGE_ERROR", "Không thể hoàn thiện ảnh mới.")
-        return
-      }
-      
-      let newImage = UIImage(cgImage: newCGImage)
-      let documentDirectory = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
-      let outputFilename = "nobg_\(Int(Date().timeIntervalSince1970)).png"
-      let outputFilePath = documentDirectory.appendingPathComponent(outputFilename).path
-      
-      if let pngData = newImage.pngData() {
-        do {
-          try pngData.write(to: URL(fileURLWithPath: outputFilePath))
-          promise.resolve([
-            "success": true,
-            "outputPath": outputFilePath
-          ])
-        } catch {
-          promise.reject("WRITE_ERROR", "Không thể lưu ảnh đã tách nền.")
-        }
-      } else {
-        promise.reject("PNG_ERROR", "Không thể chuyển đổi thành dữ liệu PNG.")
       }
     }
   }
