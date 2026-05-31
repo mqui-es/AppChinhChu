@@ -9,11 +9,20 @@ import { initAppThemeAndLang } from '../constants/theme';
 const { width } = Dimensions.get('window');
 
 export default function RootLayout() {
-  const logoScale = useRef(new Animated.Value(0.95)).current; // Bắt đầu từ 0.95 để scale nhẹ nhàng sang trọng
+  const logoScale = useRef(new Animated.Value(0.9)).current; // Phóng to cực kỳ chậm từ 0.9 lên 1.0
   const logoOpacity = useRef(new Animated.Value(0)).current;
+
+  // Hào quang hơi thở phía sau logo
+  const auraScale = useRef(new Animated.Value(1.0)).current;
+  const auraOpacity = useRef(new Animated.Value(0)).current;
+
+  // Slogan & Credits
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslateY = useRef(new Animated.Value(15)).current; // Tịnh tiến nhẹ nhàng 15px
+  const textTranslateY = useRef(new Animated.Value(12)).current;
   const authorOpacity = useRef(new Animated.Value(0)).current;
+
+  // Transition biến mất dạng thu nhỏ
+  const screenScale = useRef(new Animated.Value(1)).current; 
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const [showIntro, setShowIntro] = useState(true);
 
@@ -21,69 +30,121 @@ export default function RootLayout() {
     // 1. Khởi tạo theme và ngôn ngữ
     initAppThemeAndLang();
 
-    // 2. Chạy hiệu ứng hoạt họa Intro song song mượt mà chuẩn Apple (Easing Cubic Bezier)
-    Animated.parallel([
-      // Logo hiện lên
-      Animated.timing(logoOpacity, {
-        toValue: 1,
-        duration: 1200,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
-      }),
-      Animated.timing(logoScale, {
-        toValue: 1,
-        duration: 1400,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
-      }),
-      // Tagline tịnh tiến và hiện lên
-      Animated.timing(textOpacity, {
-        toValue: 1,
-        duration: 800,
-        delay: 500,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
-      }),
-      Animated.timing(textTranslateY, {
-        toValue: 0,
-        duration: 800,
-        delay: 500,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
-      }),
-      // Credit nhà sản xuất
-      Animated.timing(authorOpacity, {
-        toValue: 1,
-        duration: 800,
-        delay: 1000,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // 2. Định nghĩa hiệu ứng thở của quầng sáng bạc phía sau logo
+    const auraLoop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(auraScale, {
+            toValue: 1.15,
+            duration: 4000,
+            easing: Easing.bezier(0.4, 0, 0.6, 1),
+            useNativeDriver: true,
+          }),
+          Animated.timing(auraScale, {
+            toValue: 0.95,
+            duration: 4000,
+            easing: Easing.bezier(0.4, 0, 0.6, 1),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(auraOpacity, {
+            toValue: 0.4,
+            duration: 4000,
+            easing: Easing.bezier(0.4, 0, 0.6, 1),
+            useNativeDriver: true,
+          }),
+          Animated.timing(auraOpacity, {
+            toValue: 0.15,
+            duration: 4000,
+            easing: Easing.bezier(0.4, 0, 0.6, 1),
+            useNativeDriver: true,
+          }),
+        ])
+      ])
+    );
 
-    // 3. Tự động biến mất sau 3.0 giây để trải nghiệm intro được trọn vẹn hơn
+    // 3. Chuỗi hoạt họa xuất hiện tối giản sang trọng (Apple Style)
+    Animated.sequence([
+      Animated.parallel([
+        // Logo hiện ra rất từ từ bằng Cubic Bezier
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoScale, {
+          toValue: 1.0,
+          duration: 2000,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        }),
+        // Hào quang bắt đầu sáng nhẹ
+        Animated.timing(auraOpacity, {
+          toValue: 0.25,
+          duration: 1800,
+          useNativeDriver: true,
+        })
+      ]),
+      // Trượt nhẹ hiện Slogan và Credits
+      Animated.parallel([
+        Animated.timing(textOpacity, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(textTranslateY, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(authorOpacity, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ])
+    ]).start(() => {
+      // Bắt đầu chu kỳ thở nhịp nhàng của quầng sáng sau khi logo ổn định
+      auraLoop.start();
+    });
+
+    // 4. Biến mất sau 4.0 giây bằng cú thu nhỏ tấm nền (Sheet-Shrink Exit) cực sang
     const timer = setTimeout(() => {
-      Animated.timing(screenOpacity, {
-        toValue: 0,
-        duration: 700,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        useNativeDriver: true,
-      }).start(() => {
+      Animated.parallel([
+        Animated.timing(screenOpacity, {
+          toValue: 0,
+          duration: 800,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        }),
+        Animated.timing(screenScale, {
+          toValue: 0.95, // Thu nhỏ nhẹ tinh tế ra sau
+          duration: 800,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        auraLoop.stop();
         setShowIntro(false);
       });
-    }, 3000);
+    }, 3800);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      auraLoop.stop();
+    };
   }, []);
 
   return (
     <>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Khối 1: Hiển thị thanh Tab ở dưới cùng */}
         <Stack.Screen name="(tabs)" />
-        
-        {/* Khối 2: Màn hình Chi tiết (ĐÈ BẸP Tab Bar khi được gọi) */}
         <Stack.Screen 
           name="details/[id]" 
           options={{ 
@@ -94,13 +155,30 @@ export default function RootLayout() {
       </Stack>
 
       {showIntro && (
-        <Animated.View style={[StyleSheet.absoluteFill, styles.splashContainer, { opacity: screenOpacity }]}>
+        <Animated.View style={[
+          StyleSheet.absoluteFill, 
+          styles.splashContainer, 
+          { 
+            opacity: screenOpacity,
+            transform: [{ scale: screenScale }] 
+          }
+        ]}>
           <LinearGradient
-            colors={['#020204', '#07070A', '#020204']}
+            colors={['#060608', '#0b0b0f', '#060608']}
             style={StyleSheet.absoluteFill}
           />
+
           <View style={styles.splashContent}>
-            {/* Logo VSign dạng trần cực kì tinh tế */}
+            {/* Ambient Aura behind logo */}
+            <Animated.View style={[
+              styles.ambientAura,
+              {
+                opacity: auraOpacity,
+                transform: [{ scale: auraScale }],
+              }
+            ]} />
+
+            {/* Logo VSign Wrapper (Basic & Premium) */}
             <Animated.View style={[
               styles.logoWrapper,
               {
@@ -120,7 +198,7 @@ export default function RootLayout() {
               opacity: textOpacity,
               transform: [{ translateY: textTranslateY }],
               alignItems: 'center',
-              marginTop: 32,
+              marginTop: 36,
             }}>
               <Text style={styles.tagline}>HỆ THỐNG KÝ APP NGOẠI TUYẾN CHUYÊN NGHIỆP</Text>
             </Animated.View>
@@ -142,6 +220,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
+    backgroundColor: '#060608',
+  },
+  ambientAura: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 60,
+    elevation: 8,
   },
   splashContent: {
     alignItems: 'center',
@@ -155,10 +246,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 18,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   logoImage: {
     width: 180,
@@ -166,9 +257,9 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 9,
-    fontWeight: '300', // Đẹp nhẹ nhàng quý phái kiểu Apple
+    fontWeight: '300',
     color: '#8E8E93',
-    letterSpacing: 3.5, // Tỷ lệ vàng kéo giãn font chữ
+    letterSpacing: 3.5,
     textAlign: 'center',
     paddingHorizontal: 20,
   },
@@ -187,7 +278,7 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF', // Trắng tối giản tinh khiết
+    color: '#FFFFFF',
     letterSpacing: 4.5,
   },
 });

@@ -464,14 +464,21 @@ export default function AppDetailScreen() {
 
       {/* MODAL PHÓNG TO ẢNH SCREENSHOT */}
       <Modal visible={activeScreenshotIndex !== null} transparent animationType="fade" statusBarTranslucent>
-        <View style={styles.fullscreenOverlay}>
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdropOpacity }]}>
-            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setActiveScreenshotIndex(null)}>
-              <BlurView intensity={45} tint="dark" style={StyleSheet.absoluteFill} />
-            </TouchableOpacity>
+        <View style={styles.fullscreenOverlay} {...panResponder.panHandlers}>
+          <Animated.View style={[
+            StyleSheet.absoluteFill, 
+            { 
+              backgroundColor: isLight ? '#FFFFFF' : '#000000',
+              opacity: backdropOpacity 
+            }
+          ]}>
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setActiveScreenshotIndex(null)} />
           </Animated.View>
           
-          <View style={styles.dragHandle} />
+          <View style={[
+            styles.dragHandle,
+            { backgroundColor: isLight ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.3)' }
+          ]} />
 
           {activeScreenshotIndex !== null && app.screenshots && app.screenshots.length > 0 && (
             <Animated.View 
@@ -484,7 +491,6 @@ export default function AppDetailScreen() {
                   ] 
                 }
               ]}
-              {...panResponder.panHandlers}
             >
               <FlatList
                 data={app.screenshots}
@@ -503,7 +509,10 @@ export default function AppDetailScreen() {
                   <View style={styles.fullscreenImgWrapper}>
                     <Image 
                       source={{ uri: item }} 
-                      style={styles.fullscreenImg} 
+                      style={[
+                        styles.fullscreenImg,
+                        { borderColor: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.15)' }
+                      ]} 
                       resizeMode="contain" 
                     />
                   </View>
@@ -586,7 +595,6 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
     position: 'absolute',
     top: Platform.OS === 'ios' ? 65 : 45,
     zIndex: 100,
@@ -604,7 +612,9 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
     alignItems: 'center',
   },
   fullscreenImg: {
-    width: width * 0.9,
-    height: '100%',
+    width: width * 0.85,
+    height: height * 0.72,
+    borderRadius: 24,
+    borderWidth: 0.8,
   }
 });

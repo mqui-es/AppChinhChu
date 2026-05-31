@@ -123,16 +123,16 @@ export default function AccountScreen() {
                 {isRegisterMode && (
                   <View style={styles.inputWrap}>
                     <User color={COLORS.textMuted} size={20} style={styles.inputIcon}/>
-                    <TextInput style={styles.input} placeholder={TXT.fullnamePlaceholder} placeholderTextColor="#555" value={fullname} onChangeText={setFullname} />
+                    <TextInput style={styles.input} placeholder={TXT.fullnamePlaceholder} placeholderTextColor={COLORS.textMuted} value={fullname} onChangeText={setFullname} />
                   </View>
                 )}
                 <View style={styles.inputWrap}>
                   <Mail color={COLORS.textMuted} size={20} style={styles.inputIcon}/>
-                  <TextInput style={styles.input} placeholder="Email" placeholderTextColor="#555" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
+                  <TextInput style={styles.input} placeholder="Email" placeholderTextColor={COLORS.textMuted} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
                 </View>
                 <View style={styles.inputWrap}>
                   <Lock color={COLORS.textMuted} size={20} style={styles.inputIcon}/>
-                  <TextInput style={styles.input} placeholder={TXT.passwordPlaceholder} placeholderTextColor="#555" secureTextEntry value={password} onChangeText={setPassword} />
+                  <TextInput style={styles.input} placeholder={TXT.passwordPlaceholder} placeholderTextColor={COLORS.textMuted} secureTextEntry value={password} onChangeText={setPassword} />
                 </View>
                 
                 <TouchableOpacity style={styles.authBtn} activeOpacity={0.8} onPress={handleAuth} disabled={isLoading}>
@@ -250,13 +250,13 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 160 },
   
   authContainer: { flex: 1, justifyContent: 'center', padding: 16 },
-  authBox: { borderRadius: SIZES.radiusSquircle, borderWidth: 0.8, borderColor: theme.border, overflow: 'hidden' },
+  authBox: { borderRadius: SIZES.radiusSquircle, borderWidth: 0.8, borderColor: theme.border, overflow: 'hidden', backgroundColor: theme.surfaceCard },
   authBoxInside: { padding: 30, alignItems: 'center' },
   authLogo: { width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(10, 132, 255, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   authTitle: { color: theme.text, fontSize: 28, fontWeight: '800', marginBottom: 6, letterSpacing: -0.5 },
   authSub: { color: theme.textMuted, fontSize: 14, marginBottom: 25 },
   
-  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, height: 54, marginBottom: 15, paddingHorizontal: 15, borderWidth: 0.8, borderColor: theme.border },
+  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)', borderRadius: 16, height: 54, marginBottom: 15, paddingHorizontal: 15, borderWidth: 0.8, borderColor: theme.border },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, color: theme.text, fontSize: 16, height: '100%' },
   
@@ -265,7 +265,7 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   authBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 1 },
   authSwitchText: { color: theme.primary, fontSize: 14, fontWeight: '600' },
   
-  profileCard: { borderRadius: SIZES.radiusSquircle, marginTop: 10, marginBottom: 20, borderWidth: 0.8, borderColor: theme.border, overflow: 'hidden' },
+  profileCard: { borderRadius: SIZES.radiusSquircle, marginTop: 10, marginBottom: 20, borderWidth: 0.8, borderColor: theme.border, overflow: 'hidden', backgroundColor: theme.surfaceCard },
   profileCardInside: { flexDirection: 'row', alignItems: 'center', padding: 20 },
   avatar: { width: 70, height: 70, borderRadius: 35, borderWidth: 2, borderColor: theme.border },
   profileInfo: { flex: 1, marginLeft: 16 },
@@ -287,10 +287,10 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   },
   vipBannerLeft: { flexDirection: 'row', alignItems: 'center' },
   vipBannerTitle: { fontSize: 18, fontWeight: '800', marginBottom: 4, letterSpacing: -0.5 },
-  vipBannerSub: { color: '#D4AF37', fontSize: 13, opacity: 0.8 },
+  vipBannerSub: { color: theme.background === '#F2F2F7' ? '#8A6D00' : '#FFE259', fontSize: 13, opacity: 0.95 },
   
   groupTitle: { color: theme.textMuted, fontSize: 12, fontWeight: '700', marginLeft: 15, marginBottom: 8, marginTop: 10, letterSpacing: 1 },
-  group: { borderRadius: SIZES.radiusCard, overflow: 'hidden', marginBottom: 25, borderWidth: 0.8, borderColor: theme.border },
+  group: { borderRadius: SIZES.radiusCard, overflow: 'hidden', marginBottom: 25, borderWidth: 0.8, borderColor: theme.border, backgroundColor: theme.surfaceCard },
   groupInside: { paddingLeft: 16 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent' },
   iconBox: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 15 },

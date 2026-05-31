@@ -458,10 +458,59 @@ export default function SignScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.tabContainer, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
-          <TouchableOpacity style={[styles.tab, activeTab === 'ipa' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('ipa')}><Text style={[styles.tabText, activeTab === 'ipa' && [styles.tabTextActive, { color: COLORS.background === '#F2F2F7' ? COLORS.primary : '#FFFFFF' }]]}>{TXT.originalIpaShort}</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, activeTab === 'installed' && [styles.tabActive, { backgroundColor: COLORS.surface }]]} onPress={() => setActiveTab('installed')}><Text style={[styles.tabText, activeTab === 'installed' && [styles.tabTextActive, { color: COLORS.background === '#F2F2F7' ? COLORS.primary : '#FFFFFF' }]]}>{TXT.signedIpaShort}</Text></TouchableOpacity>
-        </View>
+        {(() => {
+          const isLight = COLORS.background === '#F2F2F7';
+          return (
+            <View style={[
+              styles.tabContainer, 
+              { 
+                backgroundColor: isLight ? '#E5E5EA' : COLORS.surfaceSolid, 
+                borderColor: COLORS.border 
+              }
+            ]}>
+              <TouchableOpacity 
+                style={[
+                  styles.tab, 
+                  activeTab === 'ipa' && [
+                    styles.tabActive, 
+                    { backgroundColor: isLight ? '#FFFFFF' : COLORS.surface }
+                  ]
+                ]} 
+                onPress={() => setActiveTab('ipa')}
+              >
+                <Text style={[
+                  styles.tabText, 
+                  activeTab === 'ipa' && [
+                    styles.tabTextActive, 
+                    { color: isLight ? COLORS.primary : '#FFFFFF' }
+                  ]
+                ]}>
+                  {TXT.originalIpaShort}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.tab, 
+                  activeTab === 'installed' && [
+                    styles.tabActive, 
+                    { backgroundColor: isLight ? '#FFFFFF' : COLORS.surface }
+                  ]
+                ]} 
+                onPress={() => setActiveTab('installed')}
+              >
+                <Text style={[
+                  styles.tabText, 
+                  activeTab === 'installed' && [
+                    styles.tabTextActive, 
+                    { color: isLight ? COLORS.primary : '#FFFFFF' }
+                  ]
+                ]}>
+                  {TXT.signedIpaShort}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
       </View>
 
       {loading ? ( <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}} /> ) : localFiles.length === 0 ? (

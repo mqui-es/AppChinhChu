@@ -325,7 +325,15 @@ export const TRANSLATIONS = {
     saveShareResultBtn: "Chia sẻ / Lưu ảnh sạch",
     noImageSelected: "Chưa chọn ảnh nào.",
     bgRemoverLabel: "Công cụ Tách Nền",
-    utilSection: "CÔNG CỤ TIỆN ÍCH"
+    utilSection: "CÔNG CỤ TIỆN ÍCH",
+    storageManager: "QUẢN LÝ BỘ NHỚ",
+    unsignedApps: "File IPA gốc (chưa ký)",
+    signedApps: "Ứng dụng đã ký",
+    tempFiles: "Bộ nhớ tạm thời",
+    allData: "Tất cả dữ liệu & Reset",
+    cleanBtn: "Dọn dẹp",
+    confirmClean: "Xóa",
+    autoTheme: "Tự động theo máy"
   },
   en: {
     // Tab bar labels
@@ -474,7 +482,15 @@ export const TRANSLATIONS = {
     saveShareResultBtn: "Share / Save Clean Image",
     noImageSelected: "No image selected.",
     bgRemoverLabel: "Background Remover",
-    utilSection: "UTILITY TOOLS"
+    utilSection: "UTILITY TOOLS",
+    storageManager: "STORAGE MANAGEMENT",
+    unsignedApps: "Original IPAs (Unsigned)",
+    signedApps: "Signed Applications",
+    tempFiles: "Temporary Cache Files",
+    allData: "All Data & Reset Settings",
+    cleanBtn: "Clear",
+    confirmClean: "Delete",
+    autoTheme: "Auto (System)"
   }
 };
 
@@ -501,9 +517,19 @@ export const useThemeUpdate = () => {
 
 export const loadTheme = async () => {
   try {
-    const style = await AsyncStorage.getItem('@app_theme_style') as keyof typeof THEME_STYLES;
-    if (style && THEME_STYLES[style]) {
-      Object.assign(COLORS, THEME_STYLES[style]);
+    let style = await AsyncStorage.getItem('@app_theme_style');
+    if (!style) style = 'light';
+    
+    if (style === 'auto') {
+      const { Appearance } = require('react-native');
+      const systemScheme = Appearance.getColorScheme();
+      if (systemScheme === 'dark') {
+        Object.assign(COLORS, THEME_STYLES.obsidian);
+      } else {
+        Object.assign(COLORS, THEME_STYLES.light);
+      }
+    } else if (style && THEME_STYLES[style as keyof typeof THEME_STYLES]) {
+      Object.assign(COLORS, THEME_STYLES[style as keyof typeof THEME_STYLES]);
     } else {
       Object.assign(COLORS, THEME_STYLES.light);
     }
@@ -511,6 +537,20 @@ export const loadTheme = async () => {
     console.error("Lỗi loadTheme:", e);
   }
 };
+
+// Đăng ký listener lắng nghe sự thay đổi giao diện hệ thống tự động
+try {
+  const { Appearance } = require('react-native');
+  Appearance.addChangeListener(async () => {
+    const style = await AsyncStorage.getItem('@app_theme_style');
+    if (style === 'auto') {
+      await loadTheme();
+      notifyThemeChange();
+    }
+  });
+} catch (e) {
+  console.warn("Lỗi Appearance change listener:", e);
+}
 
 export const loadLanguage = async () => {
   try {

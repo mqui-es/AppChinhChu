@@ -136,7 +136,12 @@ export default function SettingsScreen() {
   const [tempZipData, setTempZipData] = useState<any>(null);
   const [certPassword, setCertPassword] = useState('');
   const [isUnzipping, setIsUnzipping] = useState(false);
-  const [cacheSize, setCacheSize] = useState('0 MB');
+  const [storageSizes, setStorageSizes] = useState({
+    unsigned: '0.0 MB',
+    signed: '0.0 MB',
+    temp: '0.0 MB',
+    all: '0.0 MB'
+  });
 
   // Background Remover States
   const [bgRemoverVisible, setBgRemoverVisible] = useState(false);
@@ -194,7 +199,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     fetchSettings();
     loadSavedCerts();
-    calculateCacheSize();
+    calculateAllStorageSizes();
   }, []);
 
   const fetchSettings = async () => {
@@ -221,38 +226,218 @@ export default function SettingsScreen() {
     } catch (error) {}
   };
 
-  const calculateCacheSize = async () => {
+  const getDirSize = async (dirUri: string): Promise<number> => {
     try {
-      const cacheDir = FileSystem.cacheDirectory;
-      if (!cacheDir) return;
-      const files = await FileSystem.readDirectoryAsync(cacheDir);
-      let totalSize = 0;
-      for (const file of files) {
-        const info = await FileSystem.getInfoAsync(cacheDir + file);
+      const files = await FileSystem.readDirectoryAsync(dirUri);
+      let total = 0;
+      for (const f of files) {
+        const fileUri = dirUri + f;
+        const info = await FileSystem.getInfoAsync(fileUri);
         if (info.exists) {
-          totalSize += info.size;
+          if (info.isDirectory) {
+            total += await getDirSize(fileUri + '/');
+          } else {
+            total += info.size || 0;
+          }
         }
       }
-      setCacheSize((totalSize / 1024 / 1024).toFixed(1) + ' MB');
+      return total;
     } catch (e) {
-      setCacheSize('0 MB');
+      return 0;
     }
   };
 
-  const clearCache = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  const calculateAllStorageSizes = async () => {
     try {
+      const docDir = FileSystem.documentDirectory;
       const cacheDir = FileSystem.cacheDirectory;
-      if (!cacheDir) return;
-      const files = await FileSystem.readDirectoryAsync(cacheDir);
-      for (const file of files) {
-        await FileSystem.deleteAsync(cacheDir + file, { idempotent: true });
+      
+      let unsignedBytes = 0;
+      let signedBytes = 0;
+      let tempBytes = 0;
+      let certsBytes = 0;
+      
+      if (docDir) {
+        const docFiles = await FileSystem.readDirectoryAsync(docDir);
+        for (const file of docFiles) {
+          const fileUri = docDir + file;
+          const info = await FileSystem.getInfoAsync(fileUri);
+          if (info.exists) {
+            if (info.isDirectory) {
+              certsBytes += await getDirSize(fileUri + '/');
+            } else {
+              if (file.endsWith('.ipa')) {
+                if (file.startsWith('signed_')) {
+                  signedBytes += info.size || 0;
+                } else {
+                  unsignedBytes += info.size || 0;
+                }
+              }
+            }
+          }
+        }
       }
-      setCacheSize('0.0 MB');
-      Alert.alert(TXT.successLabel, TXT.langName === 'English' ? 'Cleared all temporary cache.' : 'Đã xóa toàn bộ bộ nhớ đệm tạm thời.');
-    } catch (e) {
-      Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Unable to clear cache.' : 'Không thể dọn dẹp bộ nhớ đệm.');
+      
+      if (cacheDir) {
+        tempBytes = await getDirSize(cacheDir);
+      }
+      
+      const totalBytes = unsignedBytes + signedBytes + tempBytes + certsBytes;
+      
+      const formatMB = (bytes: number) => {
+        if (bytes === 0) return '0.0 MB';
+        const mb = bytes / (1024 * 1024);
+        return mb.toFixed(1) + ' MB';
+      };
+      
+      setStorageSizes({
+        unsigned: formatMB(unsignedBytes),
+        signed: formatMB(signedBytes),
+        temp: formatMB(tempBytes),
+        all: formatMB(totalBytes)
+      });
+    } catch (error) {
+      console.error("Error calculating storage sizes:", error);
     }
+  };
+
+  const cleanUnsignedApps = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      TXT.langName === 'English' ? 'Clear Original IPAs' : 'Xóa File IPA Gốc',
+      TXT.langName === 'English' 
+        ? 'Are you sure you want to delete all unsigned original IPA files?' 
+        : 'Sếp có chắc chắn muốn xóa tất cả file IPA gốc chưa ký khỏi máy?',
+      [
+        { text: TXT.cancelBtn, style: 'cancel' },
+        { text: TXT.langName === 'English' ? 'Delete' : 'Xóa', style: 'destructive', onPress: async () => {
+            try {
+              const docDir = FileSystem.documentDirectory;
+              if (docDir) {
+                const files = await FileSystem.readDirectoryAsync(docDir);
+                for (const f of files) {
+                  if (f.endsWith('.ipa') && !f.startsWith('signed_')) {
+                    await FileSystem.deleteAsync(docDir + f, { idempotent: true });
+                  }
+                }
+              }
+              await calculateAllStorageSizes();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(TXT.successLabel, TXT.langName === 'English' ? 'Original IPA files cleared.' : 'Đã dọn dẹp sạch file IPA gốc.');
+            } catch (e) {
+              Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to clear original IPAs.' : 'Lỗi dọn dẹp file IPA gốc.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const cleanSignedApps = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      TXT.langName === 'English' ? 'Clear Signed Apps' : 'Xóa App Đã Ký',
+      TXT.langName === 'English' 
+        ? 'Are you sure you want to delete all signed IPA applications?' 
+        : 'Sếp có chắc chắn muốn xóa tất cả file IPA đã ký?',
+      [
+        { text: TXT.cancelBtn, style: 'cancel' },
+        { text: TXT.langName === 'English' ? 'Delete' : 'Xóa', style: 'destructive', onPress: async () => {
+            try {
+              const docDir = FileSystem.documentDirectory;
+              if (docDir) {
+                const files = await FileSystem.readDirectoryAsync(docDir);
+                for (const f of files) {
+                  if (f.startsWith('signed_') && f.endsWith('.ipa')) {
+                    await FileSystem.deleteAsync(docDir + f, { idempotent: true });
+                  }
+                }
+              }
+              await calculateAllStorageSizes();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(TXT.successLabel, TXT.langName === 'English' ? 'Signed IPA apps cleared.' : 'Đã dọn dẹp sạch app đã ký.');
+            } catch (e) {
+              Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to clear signed apps.' : 'Lỗi dọn dẹp app đã ký.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const cleanTempFiles = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      TXT.langName === 'English' ? 'Clear Temp Cache' : 'Xóa Bộ Nhớ Tạm',
+      TXT.langName === 'English' 
+        ? 'Are you sure you want to delete all temporary files and caches?' 
+        : 'Sếp có chắc chắn muốn dọn dẹp toàn bộ tệp tin tạm thời và cache không?',
+      [
+        { text: TXT.cancelBtn, style: 'cancel' },
+        { text: TXT.langName === 'English' ? 'Clear' : 'Dọn dẹp', style: 'destructive', onPress: async () => {
+            try {
+              const cacheDir = FileSystem.cacheDirectory;
+              if (cacheDir) {
+                const files = await FileSystem.readDirectoryAsync(cacheDir);
+                for (const f of files) {
+                  await FileSystem.deleteAsync(cacheDir + f, { idempotent: true });
+                }
+              }
+              await calculateAllStorageSizes();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(TXT.successLabel, TXT.langName === 'English' ? 'Temporary cache cleared.' : 'Đã xóa toàn bộ bộ nhớ đệm tạm thời.');
+            } catch (e) {
+              Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to clear cache.' : 'Lỗi dọn dẹp bộ nhớ đệm.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const cleanAllDataAndSettings = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Alert.alert(
+      TXT.langName === 'English' ? 'RESET ALL DATA' : 'XÓA TOÀN BỘ DỮ LIỆU & RESET',
+      TXT.langName === 'English' 
+        ? 'WARNING: This will completely delete all original IPAs, signed apps, P12 certificates, and reset all settings to defaults. This action CANNOT be undone!' 
+        : 'CẢNH BÁO: Hành động này sẽ xóa toàn bộ IPA gốc, IPA đã ký, các chứng chỉ P12 đã lưu và đưa mọi cài đặt về mặc định. Sếp chắc chắn muốn Reset chứ?',
+      [
+        { text: TXT.cancelBtn, style: 'cancel' },
+        { text: TXT.langName === 'English' ? 'Reset Everything' : 'Xóa Sạch Hết', style: 'destructive', onPress: async () => {
+            try {
+              const docDir = FileSystem.documentDirectory;
+              const cacheDir = FileSystem.cacheDirectory;
+              
+              if (cacheDir) {
+                const files = await FileSystem.readDirectoryAsync(cacheDir);
+                for (const f of files) {
+                  await FileSystem.deleteAsync(cacheDir + f, { idempotent: true });
+                }
+              }
+              
+              if (docDir) {
+                const files = await FileSystem.readDirectoryAsync(docDir);
+                for (const f of files) {
+                  await FileSystem.deleteAsync(docDir + f, { idempotent: true });
+                }
+              }
+              
+              await AsyncStorage.removeItem('@saved_certs');
+              await AsyncStorage.removeItem('@active_cert_id');
+              setSavedCerts([]);
+              setActiveCertId(null);
+              
+              await calculateAllStorageSizes();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(TXT.successLabel, TXT.langName === 'English' ? 'All storage and certificate library reset successfully!' : 'Đã dọn dẹp sạch sẽ và khôi phục cài đặt gốc thành công!');
+            } catch (e) {
+              Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to reset all data.' : 'Lỗi dọn dẹp toàn bộ dữ liệu.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const selectActiveCert = async (id: string) => {
@@ -502,6 +687,35 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             );
           })}
+          
+          {/* AUTO THEME PILL */}
+          {(() => {
+            const isSelected = currentThemeStyle === 'auto';
+            return (
+              <TouchableOpacity 
+                activeOpacity={0.8} 
+                onPress={() => changeTheme('auto')}
+                style={[
+                  styles.themePill, 
+                  { 
+                    backgroundColor: isLight ? '#FFFFFF' : '#121215', 
+                    borderColor: isSelected ? COLORS.primary : (isLight ? '#E5E5EA' : 'rgba(255,255,255,0.06)') 
+                  },
+                  isSelected && styles.themePillSelected
+                ]}
+              >
+                <View style={styles.themePillContent}>
+                  <View style={styles.swatchRow}>
+                    <View style={[styles.swatch, { backgroundColor: isLight ? '#007AFF' : '#FFE259' }]} />
+                    <View style={[styles.swatch, { backgroundColor: '#8E8E93' }]} />
+                  </View>
+                  <Text style={[styles.themeLabel, { color: isLight ? '#000000' : '#FFFFFF' }, isSelected && { fontWeight: '700' }]}>
+                    {TXT.autoTheme}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })()}
         </ScrollView>
       </View>
 
@@ -568,19 +782,125 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={[styles.rowDivider, { backgroundColor: COLORS.border }]} />
+      </View>
 
-        {/* BỘ NHỚ ĐỆM */}
-        <TouchableOpacity style={styles.rowItem} activeOpacity={0.7} onPress={clearCache}>
-          <View style={styles.rowLabelContainer}>
-            <HardDrive color={COLORS.primary} size={18} strokeWidth={2.2} />
-            <Text style={[styles.rowLabel, { color: COLORS.text }]}>{TXT.clearCache}</Text>
+      {/* SECTION: STORAGE MANAGEMENT DASHBOARD */}
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: COLORS.textMuted }]}>{TXT.storageManager}</Text>
+      </View>
+      
+      <View style={[styles.cardGroup, { backgroundColor: COLORS.surfaceCard, borderColor: COLORS.border, padding: 16 }]}>
+        <Text style={{ color: COLORS.text, fontSize: 14, fontWeight: '700', marginBottom: 12 }}>
+          {TXT.langName === 'English' ? 'App Storage Share' : 'Phân bổ bộ nhớ ứng dụng'}
+        </Text>
+        
+        {/* Horizontal segment progress bar */}
+        {(() => {
+          const getMbValue = (sizeStr: string) => parseFloat(sizeStr.replace(' MB', '')) || 0;
+          const uVal = getMbValue(storageSizes.unsigned);
+          const sVal = getMbValue(storageSizes.signed);
+          const tVal = getMbValue(storageSizes.temp);
+          const totalVal = getMbValue(storageSizes.all);
+          
+          const uPct = totalVal > 0 ? (uVal / totalVal) * 100 : 0;
+          const sPct = totalVal > 0 ? (sVal / totalVal) * 100 : 0;
+          const tPct = totalVal > 0 ? (tVal / totalVal) * 100 : 0;
+          const oPct = totalVal > 0 ? Math.max(0, 100 - uPct - sPct - tPct) : 0;
+          
+          return (
+            <View>
+              <View style={{ height: 10, borderRadius: 5, backgroundColor: isLight ? '#E5E5EA' : 'rgba(255,255,255,0.06)', flexDirection: 'row', overflow: 'hidden', marginBottom: 12 }}>
+                {uPct > 0 && <View style={{ width: `${uPct}%`, backgroundColor: '#007AFF' }} />}
+                {sPct > 0 && <View style={{ width: `${sPct}%`, backgroundColor: '#34C759' }} />}
+                {tPct > 0 && <View style={{ width: `${tPct}%`, backgroundColor: '#FF9500' }} />}
+                {oPct > 0 && <View style={{ width: `${oPct}%`, backgroundColor: '#AF52DE' }} />}
+              </View>
+              
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#007AFF' }} />
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{TXT.langName === 'English' ? 'Original IPA' : 'IPA Gốc'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#34C759' }} />
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{TXT.langName === 'English' ? 'Signed Apps' : 'App Đã Ký'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF9500' }} />
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{TXT.langName === 'English' ? 'Cache' : 'Bộ nhớ tạm'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#AF52DE' }} />
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>{TXT.langName === 'English' ? 'Certs & Config' : 'Chứng chỉ & Khác'}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
+
+        <View style={{ gap: 12 }}>
+          {/* Unsigned apps */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <View style={{ gap: 2 }}>
+              <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{TXT.unsignedApps}</Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{storageSizes.unsigned}</Text>
+            </View>
+            <TouchableOpacity 
+              style={{ backgroundColor: 'rgba(255, 69, 58, 0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }} 
+              onPress={cleanUnsignedApps}
+            >
+              <Text style={{ color: COLORS.danger, fontSize: 13, fontWeight: '700' }}>{TXT.cleanBtn}</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.rowRightSide}>
-            <Text style={[styles.rowValLabel, { color: COLORS.textMuted, marginRight: 8 }]}>{cacheSize}</Text>
-            <RefreshCw color={COLORS.textMuted} size={14} />
+          
+          <View style={{ height: 0.5, backgroundColor: COLORS.border }} />
+
+          {/* Signed apps */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <View style={{ gap: 2 }}>
+              <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{TXT.signedApps}</Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{storageSizes.signed}</Text>
+            </View>
+            <TouchableOpacity 
+              style={{ backgroundColor: 'rgba(255, 69, 58, 0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }} 
+              onPress={cleanSignedApps}
+            >
+              <Text style={{ color: COLORS.danger, fontSize: 13, fontWeight: '700' }}>{TXT.cleanBtn}</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+
+          <View style={{ height: 0.5, backgroundColor: COLORS.border }} />
+
+          {/* Cache/Temp */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <View style={{ gap: 2 }}>
+              <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{TXT.tempFiles}</Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{storageSizes.temp}</Text>
+            </View>
+            <TouchableOpacity 
+              style={{ backgroundColor: 'rgba(255, 69, 58, 0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }} 
+              onPress={cleanTempFiles}
+            >
+              <Text style={{ color: COLORS.danger, fontSize: 13, fontWeight: '700' }}>{TXT.cleanBtn}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ height: 0.5, backgroundColor: COLORS.border }} />
+
+          {/* Reset all data */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <View style={{ gap: 2 }}>
+              <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{TXT.allData}</Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{storageSizes.all}</Text>
+            </View>
+            <TouchableOpacity 
+              style={{ backgroundColor: COLORS.danger, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }} 
+              onPress={cleanAllDataAndSettings}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>Reset</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {/* SECTION 4: THÔNG TIN */}
