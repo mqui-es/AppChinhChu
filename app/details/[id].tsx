@@ -285,7 +285,7 @@ export default function AppDetailScreen() {
       const dl = FileSystem.createDownloadResumable(
         ipaLink, 
         rawIpaPath, 
-        { sessionType: bgMode ? FileSystem.FileSystemSessionType.BACKGROUND : FileSystem.FileSystemSessionType.FOREGROUND }, 
+        { sessionType: FileSystem.FileSystemSessionType.FOREGROUND }, 
         (p) => {
           const prog = Math.round((p.totalBytesWritten / p.totalBytesExpectedToWrite) * 100);
           setDownloadState(`Tải ${prog}%`);
