@@ -27,8 +27,10 @@ private:
 	bool ModifyPluginsBundleId(const string& strOldBundleId, const string& strNewBundleId);
 	bool ModifyBundleInfo(const string& strBundleId, const string& strBundleVersion, const string& strDisplayName, const string& strIconPath);
 
-private:
+public:
 	bool FindAppFolder(const string& strFolder, string& strAppFolder);
+
+private:
 	bool GetObjectsToSign(const string& strFolder, jvalue& jvInfo);
 	bool GetSignFolderInfo(const string& strFolder, jvalue& jvNode, bool bGetName = false);
 
