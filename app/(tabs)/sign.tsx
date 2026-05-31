@@ -645,56 +645,41 @@ export default function SignScreen() {
         setSignModalVisible(false);
 
         const appName = customAppName || selectedIpa.name.replace(/\.ipa$/i, '');
+        const signedFileName = result.outputPath.split('/').pop();
+        const signedFileDir = result.outputPath.substring(0, result.outputPath.lastIndexOf('/'));
+        
+        const serverUrl = await startStaticServer(signedFileDir);
+        const localIpaUrl = `${serverUrl}/${signedFileName}`;
+        
+        const bundleId = result.bundleId || 'com.ipaviet.app';
+        const iconUrl = customIconUri ? `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}&background=0A84FF&color=fff&size=512`;
+        
+        const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(appName)}&bundle=${encodeURIComponent(bundleId)}&icon=${encodeURIComponent(iconUrl)}&version=1.0`;
+        const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
+
         if (bgMode) {
           try {
             await Notifications.scheduleNotificationAsync({
               content: {
                 title: TXT.langName === 'English' ? 'App Signed Successfully!' : 'Ký App Thành Công!',
                 body: TXT.langName === 'English' 
-                  ? `"${appName}" has been signed and is ready to install.` 
-                  : `Ứng dụng "${appName}" đã được ký xong và sẵn sàng cài đặt.`,
+                  ? `"${appName}" has been signed. Tap to install directly.` 
+                  : `Ứng dụng "${appName}" đã được ký xong. Bấm vào đây để cài đặt trực tiếp.`,
                 sound: true,
+                data: { installUrl: directInstallUrl }
               },
               trigger: null,
             });
           } catch (e) {}
         }
 
-        const handleInstallOTA = async () => {
-          try {
-            const signedFileName = result.outputPath.split('/').pop();
-            const signedFileDir = result.outputPath.substring(0, result.outputPath.lastIndexOf('/'));
-            
-            const serverUrl = await startStaticServer(signedFileDir);
-            const localIpaUrl = `${serverUrl}/${signedFileName}`;
-            
-            const bundleId = result.bundleId || 'com.ipaviet.app';
-            const iconUrl = customIconUri ? `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}&background=0A84FF&color=fff&size=512`;
-            
-            const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(appName)}&bundle=${encodeURIComponent(bundleId)}&icon=${encodeURIComponent(iconUrl)}&version=1.0`;
-            const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
-            
-            Alert.alert(
-              TXT.langName === 'English' ? "Ready to Install" : "Sẵn sàng cài đặt", 
-              TXT.langName === 'English' ? "App is ready. Please click 'Install' on the popup that appears to start installing directly on your screen." : "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
-              [{ text: TXT.langName === 'English' ? "Install Now" : "Cài đặt ngay", onPress: async () => {
-                  try {
-                    if (IpaSigner) await IpaSigner.startBackgroundTask();
-                  } catch (e) {
-                    console.warn("Failed to start background task", e);
-                  }
-                  Linking.openURL(directInstallUrl);
-                  setTimeout(async () => {
-                    try {
-                      if (IpaSigner) await IpaSigner.endBackgroundTask();
-                    } catch (e) {}
-                  }, 60000);
-              }}]
-            );
-          } catch (e: any) {
-            Alert.alert(TXT.errorLabel, (TXT.langName === 'English' ? "Could not launch local OTA server: " : "Không thể tạo máy chủ OTA cục bộ: ") + e.message);
-          }
-        };
+        // TỰ ĐỘNG HIỆN POPUP CÀI ĐẶT CỦA HỆ THỐNG
+        try {
+          if (IpaSigner) await IpaSigner.startBackgroundTask();
+        } catch (e) {
+          console.warn("Failed to start background task", e);
+        }
+        Linking.openURL(directInstallUrl);
 
         Alert.alert(TXT.signSuccessTitle, TXT.signSuccessSub, [
             { text: TXT.laterBtn, style: "cancel", onPress: async () => { 
@@ -704,8 +689,14 @@ export default function SignScreen() {
                 }
               } 
             }, 
-            { text: TXT.installNowBtn, onPress: () => { handleInstallOTA(); loadDownloadedFiles(); }}
+            { text: TXT.installNowBtn, onPress: () => { Linking.openURL(directInstallUrl); loadDownloadedFiles(); }}
         ]);
+
+        setTimeout(async () => {
+          try {
+            if (IpaSigner) await IpaSigner.endBackgroundTask();
+          } catch (e) {}
+        }, 60000);
       } catch (error: any) {
         setIsSigning(false);
         const appName = customAppName || selectedIpa.name.replace(/\.ipa$/i, '');

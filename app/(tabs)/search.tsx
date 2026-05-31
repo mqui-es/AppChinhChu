@@ -98,6 +98,15 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
         throw new Error(currentLang === 'en' ? 'Downloaded file is corrupt or too small. Please verify the download source.' : 'Tệp tải về bị lỗi hoặc quá nhỏ. Sếp vui lòng kiểm tra nguồn tải nhé.');
       }
 
+      // SAO CHÉP FILE GỐC CHƯA KÝ SANG THƯ VIỆN ĐỂ NGƯỜI DÙNG NÂNG CAO DÙNG
+      try {
+        const cleanAppName = app.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+        const unsignedDestPath = FileSystem.documentDirectory + `${cleanAppName}_unsigned_${Date.now()}.ipa`;
+        await FileSystem.copyAsync({ from: rawIpaPath, to: unsignedDestPath });
+      } catch (e) {
+        console.warn("Failed to copy original file to documents", e);
+      }
+
       setStatus('Đang ký App...');
       const { signAppOffline } = require('../../modules/ipa-signer');
       const signResult = await signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
@@ -119,9 +128,10 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
             content: {
               title: TXT.langName === 'English' ? 'App Signed Successfully!' : 'Ký App Thành Công!',
               body: TXT.langName === 'English' 
-                ? `"${app.name}" has been signed and is ready to install.` 
-                : `Ứng dụng "${app.name}" đã được ký xong và sẵn sàng cài đặt.`,
+                ? `"${app.name}" has been signed. Tap to install directly.` 
+                : `Ứng dụng "${app.name}" đã được ký xong. Bấm vào đây để cài đặt trực tiếp.`,
               sound: true,
+              data: { installUrl: directInstallUrl }
             },
             trigger: null,
           });
@@ -130,24 +140,21 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
         }
       }
 
-      Alert.alert(
-        "Sẵn sàng cài đặt", 
-        "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
-        [{ text: "Cài đặt ngay", onPress: async () => {
-            try {
-              if (IpaSigner) await IpaSigner.startBackgroundTask();
-            } catch (e) {
-              console.warn("Failed to start background task", e);
-            }
-            Linking.openURL(directInstallUrl);
-            setTimeout(() => setStatus('CÀI ĐẶT'), 3000);
-            setTimeout(async () => {
-              try {
-                if (IpaSigner) await IpaSigner.endBackgroundTask();
-              } catch (e) {}
-            }, 60000);
-        }}]
-      );
+      // TỰ ĐỘNG HIỆN POPUP CÀI ĐẶT CỦA HỆ THỐNG
+      try {
+        if (IpaSigner) await IpaSigner.startBackgroundTask();
+      } catch (e) {
+        console.warn("Failed to start background task", e);
+      }
+      
+      Linking.openURL(directInstallUrl);
+      setTimeout(() => setStatus('CÀI ĐẶT'), 3000);
+      
+      setTimeout(async () => {
+        try {
+          if (IpaSigner) await IpaSigner.endBackgroundTask();
+        } catch (e) {}
+      }, 60000);
 
     } catch (e: any) {
       if (bgMode) {

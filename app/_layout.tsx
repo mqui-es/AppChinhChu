@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, Sparkles } from 'lucide-react-native';
 import { initAppThemeAndLang } from '../constants/theme';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -34,6 +35,21 @@ export default function RootLayout() {
   const screenScale = useRef(new Animated.Value(1)).current; 
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const [showIntro, setShowIntro] = useState(true);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data && data.installUrl) {
+        Linking.openURL(data.installUrl).catch(err => {
+          console.warn("Failed to open install URL from notification tap", err);
+        });
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     // 1. Khởi tạo theme và ngôn ngữ
