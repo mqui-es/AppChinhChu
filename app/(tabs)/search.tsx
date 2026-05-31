@@ -95,18 +95,19 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       
       setStatus('Hoàn tất!');
       const localIpaUrl = `${serverUrl}/${signedFileName}`;
-      const workerUrl = `${INSTALLER_WORKER_URL}?ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}`;
+      const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}&version=1.0`;
+      const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
       
       Alert.alert(
         "Sẵn sàng cài đặt", 
-        "Trình duyệt sẽ mở ra. Vui lòng bấm Cài Đặt trên web, sau đó QUAY LẠI APP NÀY và giữ màn hình sáng chờ đến khi tải xong.",
-        [{ text: "Mở Safari", onPress: async () => {
+        "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
+        [{ text: "Cài đặt ngay", onPress: async () => {
             try {
               if (IpaSigner) await IpaSigner.startBackgroundTask();
             } catch (e) {
               console.warn("Failed to start background task", e);
             }
-            Linking.openURL(workerUrl);
+            Linking.openURL(directInstallUrl);
             setTimeout(() => setStatus('CÀI ĐẶT'), 3000);
             setTimeout(async () => {
               try {

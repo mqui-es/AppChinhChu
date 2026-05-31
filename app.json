@@ -10,6 +10,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ipaviet.esign",
       "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "itms-services"
+        ],
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true,
         "ITSAppUsesNonExemptEncryption": false,

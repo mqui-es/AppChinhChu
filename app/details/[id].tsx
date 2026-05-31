@@ -296,18 +296,19 @@ export default function AppDetailScreen() {
       
       setDownloadState('Hoàn tất!');
       const localIpaUrl = `${serverUrl}/${signedFileName}`;
-      const workerUrl = `${INSTALLER_WORKER_URL}?ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}`;
+      const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}&version=1.0`;
+      const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
       
       Alert.alert(
-        TXT.readyToInstall, 
-        TXT.safariInstallInstructions,
-        [{ text: TXT.openSafariBtn, onPress: async () => {
+        TXT.langName === 'English' ? "Ready to Install" : "Sẵn sàng cài đặt", 
+        TXT.langName === 'English' ? "App is ready. Please click 'Install' on the popup that appears to start installing directly on your screen." : "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
+        [{ text: TXT.langName === 'English' ? "Install Now" : "Cài đặt ngay", onPress: async () => {
             try {
               if (IpaSigner) await IpaSigner.startBackgroundTask();
             } catch (e) {
               console.warn("Failed to start background task", e);
             }
-            Linking.openURL(workerUrl);
+            Linking.openURL(directInstallUrl);
             setTimeout(() => setDownloadState('CÀI ĐẶT'), 3000);
             setTimeout(async () => {
               try {
