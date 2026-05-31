@@ -301,9 +301,19 @@ export default function AppDetailScreen() {
       Alert.alert(
         TXT.readyToInstall, 
         TXT.safariInstallInstructions,
-        [{ text: TXT.openSafariBtn, onPress: () => {
+        [{ text: TXT.openSafariBtn, onPress: async () => {
+            try {
+              if (IpaSigner) await IpaSigner.startBackgroundTask();
+            } catch (e) {
+              console.warn("Failed to start background task", e);
+            }
             Linking.openURL(workerUrl);
             setTimeout(() => setDownloadState('CÀI ĐẶT'), 3000);
+            setTimeout(async () => {
+              try {
+                if (IpaSigner) await IpaSigner.endBackgroundTask();
+              } catch (e) {}
+            }, 60000);
         }}]
       );
 

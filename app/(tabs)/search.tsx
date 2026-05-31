@@ -100,9 +100,19 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       Alert.alert(
         "Sẵn sàng cài đặt", 
         "Trình duyệt sẽ mở ra. Vui lòng bấm Cài Đặt trên web, sau đó QUAY LẠI APP NÀY và giữ màn hình sáng chờ đến khi tải xong.",
-        [{ text: "Mở Safari", onPress: () => {
+        [{ text: "Mở Safari", onPress: async () => {
+            try {
+              if (IpaSigner) await IpaSigner.startBackgroundTask();
+            } catch (e) {
+              console.warn("Failed to start background task", e);
+            }
             Linking.openURL(workerUrl);
             setTimeout(() => setStatus('CÀI ĐẶT'), 3000);
+            setTimeout(async () => {
+              try {
+                if (IpaSigner) await IpaSigner.endBackgroundTask();
+              } catch (e) {}
+            }, 60000);
         }}]
       );
 

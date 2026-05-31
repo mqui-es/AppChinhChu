@@ -153,6 +153,9 @@ export default function SignScreen() {
     forceIOSFolderCreation();
     loadDownloadedFiles(); 
     loadSavedCerts(); 
+    if (IpaSigner) {
+      IpaSigner.endBackgroundTask().catch(() => {});
+    }
   }, []));
 
   const loadDownloadedFiles = async () => {
@@ -393,8 +396,18 @@ export default function SignScreen() {
           Alert.alert(
             TXT.readyToInstall, 
             TXT.safariInstallInstructions,
-            [{ text: TXT.openSafariBtn, onPress: () => {
+            [{ text: TXT.openSafariBtn, onPress: async () => {
+                try {
+                  if (IpaSigner) await IpaSigner.startBackgroundTask();
+                } catch (e) {
+                  console.warn("Failed to start background task", e);
+                }
                 Linking.openURL(workerUrl);
+                setTimeout(async () => {
+                  try {
+                    if (IpaSigner) await IpaSigner.endBackgroundTask();
+                  } catch (e) {}
+                }, 60000);
             }}]
           );
         } catch (e: any) {

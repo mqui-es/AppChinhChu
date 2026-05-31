@@ -25,8 +25,35 @@ private func cleanPath(_ rawPath: String) -> String {
 }
 
 public class IpaSignerModule: Module {
+  private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+
   public func definition() -> ModuleDefinition {
     Name("IpaSigner")
+
+    AsyncFunction("startBackgroundTask") { (promise: Promise) in
+      DispatchQueue.main.async {
+        if self.backgroundTaskId == .invalid {
+          self.backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "IpaLocalServerBackground") {
+            UIApplication.shared.endBackgroundTask(self.backgroundTaskId)
+            self.backgroundTaskId = .invalid
+          }
+          promise.resolve(self.backgroundTaskId != .invalid)
+        } else {
+          promise.resolve(true)
+        }
+      }
+    }
+
+    AsyncFunction("endBackgroundTask") { (promise: Promise) in
+      DispatchQueue.main.async {
+        if self.backgroundTaskId != .invalid {
+          UIApplication.shared.endBackgroundTask(self.backgroundTaskId)
+          self.backgroundTaskId = .invalid
+        }
+        promise.resolve(true)
+      }
+    }
+
 
     AsyncFunction("signAppOffline") { (ipaPath: String, p12Path: String, provPath: String, password: String, promise: Promise) in
       
