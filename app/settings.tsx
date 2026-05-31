@@ -14,7 +14,7 @@ import JSZip from 'jszip';
 import { 
   Palette, Languages, ShieldCheck, FileKey, Trash2, PlusCircle, 
   CheckCircle2, X, RefreshCw, Info, ChevronRight, ChevronLeft, Award, HardDrive,
-  Scissors
+  Scissors, Bell
 } from 'lucide-react-native';
 
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, notifyThemeChange, loadTheme, loadLanguage, THEME_STYLES, TRANSLATIONS, TXT } from '../constants/theme';
@@ -126,6 +126,7 @@ export default function SettingsScreen() {
   const [currentLang, setCurrentLang] = useState('vi');
   const [savedCerts, setSavedCerts] = useState<CertItem[]>([]);
   const [activeCertId, setActiveCertId] = useState<string | null>(null);
+  const [isBackgroundMode, setIsBackgroundMode] = useState(false);
   
   // Modals state
   const [certModalVisible, setCertModalVisible] = useState(false);
@@ -155,9 +156,31 @@ export default function SettingsScreen() {
     const style = await AsyncStorage.getItem('@app_theme_style') || 'light';
     const lang = await AsyncStorage.getItem('@app_lang') || 'vi';
     const activeCert = await AsyncStorage.getItem('@active_cert_id');
+    const bgMode = await AsyncStorage.getItem('@background_mode') === 'true';
     setCurrentThemeStyle(style);
     setCurrentLang(lang);
     setActiveCertId(activeCert);
+    setIsBackgroundMode(bgMode);
+  };
+
+  const toggleBackgroundMode = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const newVal = !isBackgroundMode;
+    
+    if (newVal) {
+      const Notifications = require('expo-notifications');
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          TXT.langName === 'English' ? 'Permission Required' : 'Yêu cầu cấp quyền',
+          TXT.langName === 'English' ? 'Notifications must be enabled for background completed alerts.' : 'Sếp cần cấp quyền thông báo để nhận cảnh báo ký xong khi chạy ngầm.'
+        );
+        return;
+      }
+    }
+    
+    setIsBackgroundMode(newVal);
+    await AsyncStorage.setItem('@background_mode', newVal ? 'true' : 'false');
   };
 
   const loadSavedCerts = async () => {
@@ -716,6 +739,29 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <View style={[styles.rowDivider, { backgroundColor: COLORS.border }]} />
+
+        <View style={styles.rowItemNoPress}>
+          <View style={styles.rowLabelContainer}>
+            <Bell color={COLORS.primary} size={18} strokeWidth={2.2} />
+            <View style={{ gap: 2 }}>
+              <Text style={[styles.rowLabel, { color: COLORS.text }]}>
+                {TXT.langName === 'English' ? 'Background Mode & Alert' : 'Chạy ngầm và thông báo'}
+              </Text>
+              <Text style={{ color: COLORS.textMuted, fontSize: 11, maxWidth: '80%' }}>
+                {TXT.langName === 'English' ? 'Download and sign apps in the background' : 'Tải và ký app dưới nền, gửi thông báo khi hoàn tất'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity 
+            style={[styles.switchWrapper, { backgroundColor: isBackgroundMode ? COLORS.success : '#333' }]}
+            activeOpacity={0.8}
+            onPress={toggleBackgroundMode}
+          >
+            <View style={[styles.switchDot, { transform: [{ translateX: isBackgroundMode ? 20 : 2 }] }]} />
+          </TouchableOpacity>
+        </View>
+
       </View>
 
       {/* SECTION: STORAGE MANAGEMENT DASHBOARD */}
@@ -1092,6 +1138,21 @@ const styles = StyleSheet.create({
   infoBox: { width: '100%', padding: 24, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: 'rgba(128,128,128,0.1)' },
   infoCloseBtn: { width: '100%', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
-
-
+  switchWrapper: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  switchDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+    elevation: 2,
+  }
 });

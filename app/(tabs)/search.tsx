@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireNativeModule } from 'expo-modules-core';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Notifications from 'expo-notifications';
 
 import { startStaticServer } from '../../utils/staticServer';
 
@@ -44,12 +45,25 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       Alert.alert("Hạn chế của Expo Go", "Tính năng ký và cài đặt IPA yêu cầu bản build phát triển (Development Build) vì sử dụng mô-đun native tự viết. Sếp không thể chạy tính năng này trên Expo Go.");
       return;
     }
+
+    const bgMode = await AsyncStorage.getItem('@background_mode') === 'true';
+    if (bgMode && IpaSigner) {
+      try {
+        await IpaSigner.startBackgroundTask();
+      } catch (e) {
+        console.warn("Failed to start background task before download", e);
+      }
+    }
+
     try {
       const certsStr = await AsyncStorage.getItem('@saved_certs');
       const certs = certsStr ? JSON.parse(certsStr) : [];
       if (!certs || certs.length === 0) {
         Alert.alert("Chưa có chứng chỉ", "Sếp cần thêm chứng chỉ P12 vào Thư viện trước khi cài app!");
         router.push('/sign');
+        if (bgMode && IpaSigner) {
+          try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+        }
         return;
       }
       
@@ -70,7 +84,7 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       const dl = FileSystem.createDownloadResumable(
         ipaLink, 
         rawIpaPath, 
-        { sessionType: FileSystem.FileSystemSessionType.FOREGROUND }, 
+        { sessionType: bgMode ? FileSystem.FileSystemSessionType.BACKGROUND : FileSystem.FileSystemSessionType.FOREGROUND }, 
         (p) => {
           const prog = Math.round((p.totalBytesWritten / p.totalBytesExpectedToWrite) * 100);
           setStatus(`Tải ${prog}%`);
@@ -85,7 +99,8 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       }
 
       setStatus('Đang ký App...');
-      const signResult = await IpaSigner.signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
+      const { signAppOffline } = require('../../modules/ipa-signer');
+      const signResult = await signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
       
       setStatus('Tạo OTA...');
       const signedFileName = signResult.outputPath.split('/').pop();
@@ -98,6 +113,23 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}&version=1.0`;
       const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
       
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? 'App Signed Successfully!' : 'Ký App Thành Công!',
+              body: TXT.langName === 'English' 
+                ? `"${app.name}" has been signed and is ready to install.` 
+                : `Ứng dụng "${app.name}" đã được ký xong và sẵn sàng cài đặt.`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (e) {
+          console.warn("Failed to schedule notification", e);
+        }
+      }
+
       Alert.alert(
         "Sẵn sàng cài đặt", 
         "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
@@ -118,6 +150,26 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       );
 
     } catch (e: any) {
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? 'App Signing Failed' : 'Ký App Thất Bại',
+              body: TXT.langName === 'English'
+                ? `Could not sign "${app?.name || 'app'}": ${e.message}`
+                : `Không thể ký "${app?.name || 'ứng dụng'}": ${e.message}`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (err) {
+          console.warn("Failed to schedule notification", err);
+        }
+      }
+      if (bgMode && IpaSigner) {
+        try { await IpaSigner.endBackgroundTask(); } catch (err) {}
+      }
+
       Alert.alert("Lỗi", e.message || "Có lỗi xảy ra trong quá trình ký và cài đặt.");
       setStatus('LỖI, THỬ LẠI');
     }

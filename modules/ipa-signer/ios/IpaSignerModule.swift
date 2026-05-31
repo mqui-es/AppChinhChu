@@ -139,6 +139,13 @@ public class IpaSignerModule: Module {
       let outputFilename = "signed_app_\(Int(Date().timeIntervalSince1970)).ipa"
       let outputFilePath = documentDirectory.appendingPathComponent(outputFilename).path
       
+      // Khởi tạo tác vụ chạy ngầm của hệ điều hành iOS để tránh bị treo khi thoát ứng dụng
+      var bgTaskId: UIBackgroundTaskIdentifier = .invalid
+      bgTaskId = UIApplication.shared.beginBackgroundTask(withName: "IpaOfflineSigningTask") {
+        UIApplication.shared.endBackgroundTask(bgTaskId)
+        bgTaskId = .invalid
+      }
+      
       DispatchQueue.global(qos: .userInitiated).async {
         // Thực thi ký bằng C++ zsign với các tùy chọn nâng cao
         let result = zsign_wrapper(
@@ -153,6 +160,12 @@ public class IpaSignerModule: Module {
         )
         
         DispatchQueue.main.async {
+          // Kết thúc tác vụ chạy ngầm khi đã xử lý xong
+          if bgTaskId != .invalid {
+            UIApplication.shared.endBackgroundTask(bgTaskId)
+            bgTaskId = .invalid
+          }
+          
           if result != 0 {
             let errorMessage: String
             switch result {

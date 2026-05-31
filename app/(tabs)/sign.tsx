@@ -4,9 +4,11 @@ import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import JSZip from 'jszip'; 
+import JSZip from 'jszip';
+import * as Notifications from 'expo-notifications'; 
 
 import { requireNativeModule } from 'expo-modules-core';
 const IpaSigner = (() => {
@@ -151,6 +153,8 @@ export default function SignScreen() {
   const [isCloning, setIsCloning] = useState(false);
   const [isLoadingIpaInfo, setIsLoadingIpaInfo] = useState(false);
   const [originalIpaInfo, setOriginalIpaInfo] = useState<{ bundleId: string; appName: string } | null>(null);
+  const [signingProgress, setSigningProgress] = useState('');
+  const [cloneQuantity, setCloneQuantity] = useState('1');
 
   const handleSelectIpa = async (item: LocalFile) => {
     setSelectedIpa(item);
@@ -186,14 +190,34 @@ export default function SignScreen() {
 
   const pickCustomIcon = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'image/png',
-        copyToCacheDirectory: true
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          TXT.langName === 'English' ? 'Permission Denied' : 'Quyền bị từ chối', 
+          TXT.langName === 'English' ? 'We need permission to access your photo library.' : 'Ứng dụng cần quyền truy cập thư viện ảnh để chọn Logo.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 1,
       });
-      if (result.canceled || !result.assets || result.assets.length === 0) return;
-      const asset = result.assets[0];
-      setCustomIconUri(asset.uri);
-      setCustomIconName(asset.name);
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setCustomIconUri(asset.uri);
+        let fileName = asset.fileName || '';
+        if (!fileName) {
+          const parts = asset.uri.split('/');
+          fileName = parts[parts.length - 1];
+        }
+        if (!fileName.endsWith('.png')) {
+          fileName = 'custom_icon.png';
+        }
+        setCustomIconName(fileName);
+      }
     } catch (e) {
       Alert.alert(TXT.errorLabel, TXT.langName === 'English' ? 'Failed to select icon.' : 'Không thể chọn ảnh làm logo.');
     }
@@ -206,6 +230,7 @@ export default function SignScreen() {
         setCustomBundleId(prev => prev + '.clone');
       }
     } else {
+      setCloneQuantity('1');
       if (customBundleId && customBundleId.endsWith('.clone')) {
         setCustomBundleId(prev => prev.slice(0, -6));
       }
@@ -433,6 +458,150 @@ export default function SignScreen() {
     ]);
   };
 
+  const signNextClone = async (index: number, total: number) => {
+    const bgMode = await AsyncStorage.getItem('@background_mode') === 'true';
+    if (index > total) {
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? "Cloning Completed" : "Hoàn tất nhân bản",
+              body: TXT.langName === 'English' 
+                ? `All ${total} clones signed successfully!` 
+                : `Đã ký và chuẩn bị xong tất cả ${total} bản sao!`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (e) {}
+      }
+      if (bgMode && IpaSigner) {
+        try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+      }
+      Alert.alert(
+        TXT.langName === 'English' ? "Completed" : "Hoàn tất", 
+        TXT.langName === 'English' ? `All ${total} clones signed successfully!` : `Đã ký và chuẩn bị xong tất cả ${total} bản sao!`
+      );
+      setIsSigning(false);
+      setSignModalVisible(false);
+      loadDownloadedFiles();
+      return;
+    }
+    
+    setSigningProgress(TXT.langName === 'English' ? `Signing clone ${index}/${total}...` : `Đang ký bản sao ${index}/${total}...`);
+    
+    try {
+      const originalBundle = originalIpaInfo?.bundleId || 'com.ipaviet.app';
+      const cleanOriginalBundle = originalBundle.endsWith('.clone') ? originalBundle.slice(0, -6) : originalBundle;
+      const cloneBundleId = `${cleanOriginalBundle}.clone${index}`;
+      
+      const originalName = originalIpaInfo?.appName || selectedIpa!.name.replace(/\.ipa$/i, '');
+      const cleanOriginalName = originalName.replace(/\s+Clone\s+\d+$/i, '');
+      const cloneAppName = `${cleanOriginalName} Clone ${index}`;
+      
+      const { signAppOffline } = require('../../modules/ipa-signer');
+      const result = await signAppOffline(
+        selectedIpa!.uri, 
+        selectedCert!.p12Uri, 
+        selectedCert!.provUri, 
+        selectedCert!.password,
+        cloneBundleId,
+        cloneAppName,
+        customIconUri || ''
+      );
+      
+      const signedFileName = result.outputPath.split('/').pop();
+      const signedFileDir = result.outputPath.substring(0, result.outputPath.lastIndexOf('/'));
+      const serverUrl = await startStaticServer(signedFileDir);
+      const localIpaUrl = `${serverUrl}/${signedFileName}`;
+      
+      const bundleId = result.bundleId || cloneBundleId;
+      const iconUrl = customIconUri ? `https://ui-avatars.com/api/?name=${encodeURIComponent(cloneAppName)}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(cloneAppName)}&background=0A84FF&color=fff&size=512`;
+      
+      const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(cloneAppName)}&bundle=${encodeURIComponent(bundleId)}&icon=${encodeURIComponent(iconUrl)}&version=1.0`;
+      const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
+      
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? `Clone Ready (${index}/${total})` : `Bản sao đã sẵn sàng (${index}/${total})`,
+              body: TXT.langName === 'English'
+                ? `"${cloneAppName}" is signed. Open the app to trigger installation.`
+                : `Bản sao "${cloneAppName}" đã ký xong. Vui lòng mở ứng dụng để cài đặt.`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (e) {
+          console.warn("Failed to schedule notification", e);
+        }
+      }
+
+      Alert.alert(
+        TXT.langName === 'English' ? `Clone Ready (${index}/${total})` : `Bản sao đã sẵn sàng (${index}/${total})`, 
+        TXT.langName === 'English' ? `"${cloneAppName}" is signed. Press Install and wait a moment for the next clone prompt.` : `Bản sao "${cloneAppName}" đã ký thành công. Bấm Cài đặt để bắt đầu tải trực tiếp trên thiết bị, hệ thống sẽ tự ký bản sao tiếp theo.`,
+        [
+          { 
+            text: TXT.langName === 'English' ? "Stop Process" : "Dừng lại", 
+            style: "cancel", 
+            onPress: async () => {
+              setIsSigning(false);
+              setSignModalVisible(false);
+              loadDownloadedFiles();
+              if (bgMode && IpaSigner) {
+                try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+              }
+            }
+          },
+          { 
+            text: TXT.langName === 'English' ? "Install Now" : "Cài đặt ngay", 
+            onPress: async () => {
+              try {
+                if (IpaSigner) await IpaSigner.startBackgroundTask();
+              } catch (e) {}
+              
+              Linking.openURL(directInstallUrl);
+              
+              setTimeout(() => {
+                signNextClone(index + 1, total);
+              }, 1500);
+            }
+          }
+        ]
+      );
+      
+    } catch (error: any) {
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? `Clone ${index} Error` : `Lỗi bản sao ${index}`,
+              body: error.message || "Có lỗi xảy ra.",
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (e) {}
+      }
+      Alert.alert(
+        TXT.langName === 'English' ? `Clone ${index} Error` : `Lỗi bản sao ${index}`, 
+        error.message || "Có lỗi xảy ra.",
+        [
+          { text: TXT.langName === 'English' ? "Stop" : "Dừng ký", style: "cancel", onPress: async () => { 
+              setIsSigning(false); 
+              loadDownloadedFiles(); 
+              if (bgMode && IpaSigner) {
+                try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+              }
+            } 
+          },
+          { text: TXT.langName === 'English' ? "Skip & Continue" : "Bỏ qua & Tiếp tục", onPress: () => signNextClone(index + 1, total) }
+        ]
+      );
+    }
+  };
+
   const handleStartSign = async () => {
     if (Platform.OS === 'web') {
       Alert.alert(TXT.langName === 'English' ? 'Not Available' : "Không khả dụng", TXT.langName === 'English' ? 'Offline signing and installation of IPA is only supported on physical iOS devices.' : "Tính năng ký và cài đặt IPA ngoại tuyến chỉ được hỗ trợ trên thiết bị iOS thực tế.");
@@ -444,65 +613,121 @@ export default function SignScreen() {
     }
     if (!selectedCert || !selectedIpa) return Alert.alert(TXT.langName === 'English' ? 'Missing' : "Thiếu", TXT.selectIpaCert);
     
+    const bgMode = await AsyncStorage.getItem('@background_mode') === 'true';
+    if (bgMode && IpaSigner) {
+      try {
+        await IpaSigner.startBackgroundTask();
+      } catch (e) {
+        console.warn("Failed to start background task before manual signing", e);
+      }
+    }
+
     setIsSigning(true);
-    try {
-      const { signAppOffline } = require('../../modules/ipa-signer');
-      const result = await signAppOffline(
-        selectedIpa.uri, 
-        selectedCert.p12Uri, 
-        selectedCert.provUri, 
-        selectedCert.password,
-        customBundleId !== originalIpaInfo?.bundleId ? customBundleId : '',
-        customAppName !== originalIpaInfo?.appName ? customAppName : '',
-        customIconUri || ''
-      );
-      setIsSigning(false);
-      setSignModalVisible(false);
+    
+    const qty = isCloning ? parseInt(cloneQuantity, 10) || 1 : 1;
+    
+    if (qty > 1) {
+      signNextClone(1, qty);
+    } else {
+      setSigningProgress(TXT.coreSigningText);
+      try {
+        const { signAppOffline } = require('../../modules/ipa-signer');
+        const result = await signAppOffline(
+          selectedIpa.uri, 
+          selectedCert.p12Uri, 
+          selectedCert.provUri, 
+          selectedCert.password,
+          customBundleId !== originalIpaInfo?.bundleId ? customBundleId : '',
+          customAppName !== originalIpaInfo?.appName ? customAppName : '',
+          customIconUri || ''
+        );
+        setIsSigning(false);
+        setSignModalVisible(false);
 
-      const handleInstallOTA = async () => {
-        try {
-          const signedFileName = result.outputPath.split('/').pop();
-          const signedFileDir = result.outputPath.substring(0, result.outputPath.lastIndexOf('/'));
-          
-          const serverUrl = await startStaticServer(signedFileDir);
-          const localIpaUrl = `${serverUrl}/${signedFileName}`;
-          
-          const bundleId = result.bundleId || 'com.ipaviet.app';
-          const appName = selectedIpa.name.replace(/\.ipa$/i, '');
-          const iconUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}&background=0A84FF&color=fff&size=512`;
-          
-          const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(appName)}&bundle=${encodeURIComponent(bundleId)}&icon=${encodeURIComponent(iconUrl)}&version=1.0`;
-          const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
-          
-          Alert.alert(
-            TXT.langName === 'English' ? "Ready to Install" : "Sẵn sàng cài đặt", 
-            TXT.langName === 'English' ? "App is ready. Please click 'Install' on the popup that appears to start installing directly on your screen." : "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
-            [{ text: TXT.langName === 'English' ? "Install Now" : "Cài đặt ngay", onPress: async () => {
-                try {
-                  if (IpaSigner) await IpaSigner.startBackgroundTask();
-                } catch (e) {
-                  console.warn("Failed to start background task", e);
-                }
-                Linking.openURL(directInstallUrl);
-                setTimeout(async () => {
-                  try {
-                    if (IpaSigner) await IpaSigner.endBackgroundTask();
-                  } catch (e) {}
-                }, 60000);
-            }}]
-          );
-        } catch (e: any) {
-          Alert.alert(TXT.errorLabel, (TXT.langName === 'English' ? "Could not launch local OTA server: " : "Không thể tạo máy chủ OTA cục bộ: ") + e.message);
+        const appName = customAppName || selectedIpa.name.replace(/\.ipa$/i, '');
+        if (bgMode) {
+          try {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: TXT.langName === 'English' ? 'App Signed Successfully!' : 'Ký App Thành Công!',
+                body: TXT.langName === 'English' 
+                  ? `"${appName}" has been signed and is ready to install.` 
+                  : `Ứng dụng "${appName}" đã được ký xong và sẵn sàng cài đặt.`,
+                sound: true,
+              },
+              trigger: null,
+            });
+          } catch (e) {}
         }
-      };
 
-      Alert.alert(TXT.signSuccessTitle, TXT.signSuccessSub, [
-          { text: TXT.laterBtn, style: "cancel", onPress: () => loadDownloadedFiles() }, 
-          { text: TXT.installNowBtn, onPress: () => { handleInstallOTA(); loadDownloadedFiles(); }}
-      ]);
-    } catch (error: any) {
-      setIsSigning(false);
-      Alert.alert(TXT.langName === 'English' ? 'Signing Error' : "Lỗi Ký App", error.message || TXT.signFailure);
+        const handleInstallOTA = async () => {
+          try {
+            const signedFileName = result.outputPath.split('/').pop();
+            const signedFileDir = result.outputPath.substring(0, result.outputPath.lastIndexOf('/'));
+            
+            const serverUrl = await startStaticServer(signedFileDir);
+            const localIpaUrl = `${serverUrl}/${signedFileName}`;
+            
+            const bundleId = result.bundleId || 'com.ipaviet.app';
+            const iconUrl = customIconUri ? `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(appName)}&background=0A84FF&color=fff&size=512`;
+            
+            const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(appName)}&bundle=${encodeURIComponent(bundleId)}&icon=${encodeURIComponent(iconUrl)}&version=1.0`;
+            const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
+            
+            Alert.alert(
+              TXT.langName === 'English' ? "Ready to Install" : "Sẵn sàng cài đặt", 
+              TXT.langName === 'English' ? "App is ready. Please click 'Install' on the popup that appears to start installing directly on your screen." : "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
+              [{ text: TXT.langName === 'English' ? "Install Now" : "Cài đặt ngay", onPress: async () => {
+                  try {
+                    if (IpaSigner) await IpaSigner.startBackgroundTask();
+                  } catch (e) {
+                    console.warn("Failed to start background task", e);
+                  }
+                  Linking.openURL(directInstallUrl);
+                  setTimeout(async () => {
+                    try {
+                      if (IpaSigner) await IpaSigner.endBackgroundTask();
+                    } catch (e) {}
+                  }, 60000);
+              }}]
+            );
+          } catch (e: any) {
+            Alert.alert(TXT.errorLabel, (TXT.langName === 'English' ? "Could not launch local OTA server: " : "Không thể tạo máy chủ OTA cục bộ: ") + e.message);
+          }
+        };
+
+        Alert.alert(TXT.signSuccessTitle, TXT.signSuccessSub, [
+            { text: TXT.laterBtn, style: "cancel", onPress: async () => { 
+                loadDownloadedFiles(); 
+                if (bgMode && IpaSigner) {
+                  try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+                }
+              } 
+            }, 
+            { text: TXT.installNowBtn, onPress: () => { handleInstallOTA(); loadDownloadedFiles(); }}
+        ]);
+      } catch (error: any) {
+        setIsSigning(false);
+        const appName = customAppName || selectedIpa.name.replace(/\.ipa$/i, '');
+        if (bgMode) {
+          try {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: TXT.langName === 'English' ? 'App Signing Failed' : 'Ký App Thất Bại',
+                body: TXT.langName === 'English'
+                  ? `Could not sign "${appName}": ${error.message}`
+                  : `Không thể ký "${appName}": ${error.message}`,
+                sound: true,
+              },
+              trigger: null,
+            });
+          } catch (e) {}
+        }
+        if (bgMode && IpaSigner) {
+          try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+        }
+        Alert.alert(TXT.langName === 'English' ? 'Signing Error' : "Lỗi Ký App", error.message || TXT.signFailure);
+      }
     }
   };
 
@@ -771,6 +996,25 @@ export default function SignScreen() {
                               <View style={[styles.switchDot, { transform: [{ translateX: isCloning ? 20 : 2 }] }]} />
                             </TouchableOpacity>
                           </View>
+
+                          {isCloning && (
+                            <View style={styles.inputGroup}>
+                              <Text style={[styles.inputLabel, { color: COLORS.textMuted }]}>
+                                {TXT.langName === 'English' ? 'Number of clones' : 'Số lượng bản sao cần ký'}
+                              </Text>
+                              <TextInput
+                                style={[styles.textInput, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
+                                value={cloneQuantity}
+                                onChangeText={(text) => {
+                                  const num = text.replace(/[^0-9]/g, '');
+                                  setCloneQuantity(num);
+                                }}
+                                keyboardType="number-pad"
+                                placeholder="1"
+                                placeholderTextColor="#666"
+                              />
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>
@@ -783,7 +1027,7 @@ export default function SignScreen() {
               <View style={{paddingTop: 15, borderTopWidth: 1, borderColor: COLORS.border, width: '100%'}}>
                 <TouchableOpacity style={[styles.signBtn, { backgroundColor: COLORS.primary }, (!selectedCert || isSigning) && {opacity: 0.5}]} onPress={handleStartSign} disabled={!selectedCert || isSigning}>
                   {isSigning ? (
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}><ActivityIndicator color={COLORS.textDark} style={{marginRight: 10}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>{TXT.coreSigningText}</Text></View>
+                    <View style={{flexDirection: 'row', alignItems: 'center'}}><ActivityIndicator color={COLORS.textDark} style={{marginRight: 10}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>{signingProgress || TXT.coreSigningText}</Text></View>
                   ) : (
                     <View style={{flexDirection: 'row', alignItems: 'center'}}><Rocket color={COLORS.textDark} size={20} style={{marginRight: 8}} /><Text style={[styles.signBtnText, { color: COLORS.textDark }]}>{TXT.tapToSignNow}</Text></View>
                   )}

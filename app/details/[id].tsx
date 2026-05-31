@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireNativeModule } from 'expo-modules-core';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Notifications from 'expo-notifications';
 
 import { CACHED_REGULAR_APPS, CACHED_VIP_APPS, fetchRegularApps, fetchVIPApps, AppItem } from '../../constants/data';
 import { auth, db } from '../../firebaseConfig';
@@ -244,6 +245,16 @@ export default function AppDetailScreen() {
       );
       return;
     }
+
+    const bgMode = await AsyncStorage.getItem('@background_mode') === 'true';
+    if (bgMode && IpaSigner) {
+      try {
+        await IpaSigner.startBackgroundTask();
+      } catch (e) {
+        console.warn("Failed to start background task before download", e);
+      }
+    }
+
     try {
       const certsStr = await AsyncStorage.getItem('@saved_certs');
       const certs = certsStr ? JSON.parse(certsStr) : [];
@@ -253,6 +264,9 @@ export default function AppDetailScreen() {
           TXT.langName === 'English' ? "You need to add a P12 certificate to your Library before installing apps!" : "Sếp cần thêm chứng chỉ P12 vào Thư viện trước khi cài app!"
         );
         router.push('/sign');
+        if (bgMode && IpaSigner) {
+          try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+        }
         return;
       }
       const activeId = await AsyncStorage.getItem('@active_cert_id');
@@ -271,7 +285,7 @@ export default function AppDetailScreen() {
       const dl = FileSystem.createDownloadResumable(
         ipaLink, 
         rawIpaPath, 
-        { sessionType: FileSystem.FileSystemSessionType.FOREGROUND }, 
+        { sessionType: bgMode ? FileSystem.FileSystemSessionType.BACKGROUND : FileSystem.FileSystemSessionType.FOREGROUND }, 
         (p) => {
           const prog = Math.round((p.totalBytesWritten / p.totalBytesExpectedToWrite) * 100);
           setDownloadState(`Tải ${prog}%`);
@@ -286,7 +300,8 @@ export default function AppDetailScreen() {
       }
 
       setDownloadState('Đang ký App...');
-      const signResult = await IpaSigner.signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
+      const { signAppOffline } = require('../../modules/ipa-signer');
+      const signResult = await signAppOffline(rawIpaPath, activeCert.p12Uri, activeCert.provUri, activeCert.password);
       
       setDownloadState('Tạo OTA...');
       const signedFileName = signResult.outputPath.split('/').pop();
@@ -299,6 +314,23 @@ export default function AppDetailScreen() {
       const plistUrl = `${INSTALLER_WORKER_URL}/?plist=true&ipa=${encodeURIComponent(localIpaUrl)}&name=${encodeURIComponent(app.name)}&bundle=${encodeURIComponent(signResult.bundleId || (app as any).bundleId || 'com.ipaviet.app')}&icon=${encodeURIComponent(app.iconUrl)}&version=1.0`;
       const directInstallUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`;
       
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? 'App Signed Successfully!' : 'Ký App Thành Công!',
+              body: TXT.langName === 'English' 
+                ? `"${app.name}" has been signed and is ready to install.` 
+                : `Ứng dụng "${app.name}" đã được ký xong và sẵn sàng cài đặt.`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (e) {
+          console.warn("Failed to schedule notification", e);
+        }
+      }
+
       Alert.alert(
         TXT.langName === 'English' ? "Ready to Install" : "Sẵn sàng cài đặt", 
         TXT.langName === 'English' ? "App is ready. Please click 'Install' on the popup that appears to start installing directly on your screen." : "Ứng dụng đã sẵn sàng. Sếp vui lòng bấm nút 'Cài đặt' trên thông báo hệ thống hiện ra tiếp theo để bắt đầu tải trực tiếp trên màn hình chính nhé.",
@@ -319,6 +351,26 @@ export default function AppDetailScreen() {
       );
 
     } catch (error: any) {
+      if (bgMode) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: TXT.langName === 'English' ? 'App Signing Failed' : 'Ký App Thất Bại',
+              body: TXT.langName === 'English'
+                ? `Could not sign "${app?.name || 'app'}": ${error.message}`
+                : `Không thể ký "${app?.name || 'ứng dụng'}": ${error.message}`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        } catch (e) {
+          console.warn("Failed to schedule notification", e);
+        }
+      }
+      if (bgMode && IpaSigner) {
+        try { await IpaSigner.endBackgroundTask(); } catch (e) {}
+      }
+
       Alert.alert(TXT.errorLabel, error.message || (TXT.langName === 'English' ? "Installation process failed." : "Quá trình cài đặt thất bại."));
       setDownloadState('LỖI, THỬ LẠI');
     }

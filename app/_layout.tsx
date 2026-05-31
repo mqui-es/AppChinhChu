@@ -1,10 +1,21 @@
 import { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, Dimensions, Animated, Image, Easing } from 'react-native';
+import { StyleSheet, View, Text, Dimensions, Animated, Image, Easing, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, Sparkles } from 'lucide-react-native';
 import { initAppThemeAndLang } from '../constants/theme';
+import * as Notifications from 'expo-notifications';
+
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 const { width } = Dimensions.get('window');
 
