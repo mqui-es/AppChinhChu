@@ -3,3 +3,4 @@ node_modules/
 dist/
 *.p12
 *.mobileprovision
+google_apps_script.js
