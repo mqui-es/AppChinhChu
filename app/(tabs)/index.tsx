@@ -1,15 +1,19 @@
 import React, { useState, useEffect, memo, useRef } from 'react';
 import { 
   StyleSheet, Text, View, ScrollView, Image, TouchableOpacity, 
-  ActivityIndicator, Animated, Dimensions, Platform 
+  ActivityIndicator, Animated, Dimensions, Platform, Modal 
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchRegularApps, fetchVIPApps, AppItem } from '../../constants/data';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
-import { Sparkles, Flame } from 'lucide-react-native';
+import { Sparkles, Flame, BellRing, X } from 'lucide-react-native';
+import * as Linking from 'expo-linking';
+import { db } from '../../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -192,6 +196,15 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
   const isLight = COLORS.background === '#F2F2F7';
+
+  const [announcement, setAnnouncement] = useState<{
+    show: boolean;
+    title: string;
+    msg: string;
+    imgUrl?: string;
+    actionUrl?: string;
+  } | null>(null);
+  const [showHomePopup, setShowHomePopup] = useState(false);
   
   // Header parallax: title fades at top
   const headerOpacity = scrollY.interpolate({
@@ -207,14 +220,111 @@ export default function HomeScreen() {
       setNewApps(regular.slice(0, 6));
       setLoading(false);
     });
+
+    const checkHomeAnnouncement = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'config'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.homePopupShow) {
+            const ann = {
+              show: data.homePopupShow,
+              title: data.homePopupTitle || 'Thông báo',
+              msg: data.homePopupMsg || '',
+              imgUrl: data.homePopupImg || '',
+              actionUrl: data.homePopupUrl || '',
+            };
+            setAnnouncement(ann);
+            
+            // Check if user has already seen this announcement
+            const key = `seen_announcement_${data.homePopupTitle}_${data.homePopupMsg}_${data.homePopupImg}`;
+            const hasSeen = await AsyncStorage.getItem(key);
+            if (!hasSeen) {
+              setShowHomePopup(true);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to check home announcement:", e);
+      }
+    };
+    checkHomeAnnouncement();
   }, []);
 
-  // Ngày hôm nay
   const today = new Date().toLocaleDateString('vi-VN', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
       <StatusBar style={isLight ? 'dark' : 'light'} />
+
+      <Modal visible={showHomePopup && !!announcement} transparent animationType="fade">
+        <View style={styles.homeModalBg}>
+          <View style={[styles.homeModalBox, SHADOWS.glowDark]}>
+            <TouchableOpacity 
+              style={styles.homeModalCloseBtn} 
+              onPress={async () => {
+                if (announcement) {
+                  const key = `seen_announcement_${announcement.title}_${announcement.msg}_${announcement.imgUrl}`;
+                  await AsyncStorage.setItem(key, 'true');
+                }
+                setShowHomePopup(false);
+              }}
+            >
+              <X color="#FFF" size={20} />
+            </TouchableOpacity>
+            
+            {announcement?.imgUrl ? (
+              <Image source={{ uri: announcement.imgUrl }} style={styles.homeModalImg} resizeMode="cover" />
+            ) : (
+              <View style={styles.homeModalIconCircle}>
+                <BellRing color={COLORS.primary} size={40} strokeWidth={1.5} />
+              </View>
+            )}
+            
+            <Text style={styles.homeModalTitle}>{announcement?.title}</Text>
+            <ScrollView style={styles.homeModalScroll} contentContainerStyle={styles.homeModalScrollContent}>
+              <Text style={styles.homeModalMsg}>{announcement?.msg}</Text>
+            </ScrollView>
+
+            <View style={styles.homeModalButtons}>
+              {announcement?.actionUrl ? (
+                <TouchableOpacity 
+                  style={styles.homeModalActionBtn} 
+                  activeOpacity={0.8} 
+                  onPress={async () => {
+                    if (announcement) {
+                      const key = `seen_announcement_${announcement.title}_${announcement.msg}_${announcement.imgUrl}`;
+                      await AsyncStorage.setItem(key, 'true');
+                    }
+                    setShowHomePopup(false);
+                    if (announcement?.actionUrl) {
+                      Linking.openURL(announcement.actionUrl).catch(() => {});
+                    }
+                  }}
+                >
+                  <LinearGradient colors={COLORS.primaryGradient} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.homeModalBtnGradient}>
+                    <Text style={styles.homeModalBtnText}>XEM CHI TIẾT</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : null}
+              
+              <TouchableOpacity 
+                style={[styles.homeModalBtn, { marginTop: announcement?.actionUrl ? 10 : 0 }]} 
+                activeOpacity={0.8} 
+                onPress={async () => {
+                  if (announcement) {
+                    const key = `seen_announcement_${announcement.title}_${announcement.msg}_${announcement.imgUrl}`;
+                    await AsyncStorage.setItem(key, 'true');
+                  }
+                  setShowHomePopup(false);
+                }}
+              >
+                <Text style={styles.homeModalCloseText}>ĐÓNG</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
@@ -239,6 +349,27 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </Animated.View>
+
+        {/* ── INLINE ANNOUNCEMENT BANNER ── */}
+        {announcement && announcement.msg && (
+          <TouchableOpacity 
+            style={[styles.announcementBanner, { backgroundColor: COLORS.surfaceCard, borderColor: COLORS.border }, SHADOWS.glowCard]}
+            onPress={() => setShowHomePopup(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.announcementHeader}>
+              <View style={styles.announcementIconBox}>
+                <BellRing color={COLORS.primary} size={14} strokeWidth={2.5} />
+              </View>
+              <Text style={[styles.announcementTitle, { color: COLORS.text }]} numberOfLines={1}>
+                {announcement.title}
+              </Text>
+            </View>
+            <Text style={[styles.announcementText, { color: COLORS.textMuted }]} numberOfLines={2}>
+              {announcement.msg}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {loading ? (
           <View style={styles.loadingBox}>
@@ -471,4 +602,145 @@ const styles = StyleSheet.create({
   },
   getBtnText: { fontSize: 13, fontWeight: '800' },
   divider: { height: 0.5, marginLeft: 68 },
+  announcementBanner: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    borderWidth: 0.8,
+    padding: 16,
+  },
+  announcementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  announcementIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 69, 58, 0.25)',
+  },
+  announcementTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+  },
+  announcementText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  homeModalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  homeModalBox: {
+    backgroundColor: '#1C1C1E',
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 28,
+    borderWidth: 0.8,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  homeModalCloseBtn: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  homeModalImg: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#000',
+  },
+  homeModalIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 35,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 69, 58, 0.2)',
+  },
+  homeModalTitle: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '800',
+    marginTop: 20,
+    paddingHorizontal: 20,
+    textAlign: 'center',
+  },
+  homeModalScroll: {
+    maxHeight: 180,
+    width: '100%',
+    marginTop: 12,
+    marginBottom: 25,
+    paddingHorizontal: 20,
+  },
+  homeModalScrollContent: {
+    paddingBottom: 10,
+  },
+  homeModalMsg: {
+    color: '#D1D1D6',
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  homeModalButtons: {
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+  },
+  homeModalActionBtn: {
+    width: '100%',
+    height: 50,
+    borderRadius: 15,
+    overflow: 'hidden',
+  },
+  homeModalBtnGradient: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  homeModalBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  homeModalBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 0.8,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  homeModalCloseText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
 });

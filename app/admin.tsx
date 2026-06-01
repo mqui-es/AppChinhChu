@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Switch } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Switch, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,7 +27,23 @@ export default function AdminScreen() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [giftcodesList, setGiftcodesList] = useState<any[]>([]);
   const [dataKho, setDataKho] = useState<any[]>([]);
-  const [sysConfig, setSysConfig] = useState({ popupMsg: '', showPopup: false, enable14Days: true });
+  const [sysConfig, setSysConfig] = useState({ 
+    popupMsg: '', 
+    showPopup: false, 
+    enable14Days: true,
+    homePopupShow: false,
+    homePopupTitle: '',
+    homePopupMsg: '',
+    homePopupImg: '',
+    homePopupUrl: ''
+  });
+
+  // State thông báo máy
+  const [pushTitle, setPushTitle] = useState('');
+  const [pushBody, setPushBody] = useState('');
+  const [pushUrl, setPushUrl] = useState('');
+  const [isSendingPush, setIsSendingPush] = useState(false);
+  const [registeredDeviceCount, setRegisteredDeviceCount] = useState(0);
   
   // Thống kê
   const [stats, setStats] = useState({ revenue: 0, totalUsers: 0, totalVips: 0, totalCoins: 0 });
@@ -117,11 +133,91 @@ export default function AdminScreen() {
     let gcArr: any[] = [];
     gcSnap.forEach(d => gcArr.push({ id: d.id, ...d.data() }));
     setGiftcodesList(gcArr);
+
+    // Tải số lượng thiết bị đăng ký nhận thông báo
+    try {
+      const pushTokensSnap = await getDocs(collection(db, 'push_tokens'));
+      setRegisteredDeviceCount(pushTokensSnap.size);
+    } catch (e) {
+      console.warn("Failed to fetch push tokens count:", e);
+    }
   };
 
   const saveSettings = async () => {
     try { await setDoc(doc(db, 'settings', 'config'), sysConfig, { merge: true }); Alert.alert("Thành công", "Đã lưu cài đặt!"); } 
     catch (error) { Alert.alert("Lỗi", "Không thể lưu."); }
+  };
+
+  const handleSendPushNotifications = async () => {
+    if (!pushTitle.trim() || !pushBody.trim()) {
+      return Alert.alert("Lỗi", "Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo đẩy!");
+    }
+
+    Alert.alert(
+      "Xác nhận gửi",
+      `Gửi thông báo đẩy đến tất cả ${registeredDeviceCount} thiết bị?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Gửi ngay",
+          onPress: async () => {
+            setIsSendingPush(true);
+            try {
+              const tokensSnap = await getDocs(collection(db, 'push_tokens'));
+              const tokens: string[] = [];
+              tokensSnap.forEach(d => {
+                const tData = d.data();
+                if (tData.token) tokens.push(tData.token);
+              });
+
+              if (tokens.length === 0) {
+                Alert.alert("Thông tin", "Không tìm thấy thiết bị nào đã đăng ký nhận thông báo.");
+                setIsSendingPush(false);
+                return;
+              }
+
+              // Send in batches of 100 to Expo Push API
+              const chunkSize = 100;
+              let sentCount = 0;
+
+              for (let i = 0; i < tokens.length; i += chunkSize) {
+                const chunk = tokens.slice(i, i + chunkSize);
+                const messages = chunk.map(token => ({
+                  to: token,
+                  sound: 'default',
+                  title: pushTitle.trim(),
+                  body: pushBody.trim(),
+                  data: pushUrl.trim() ? { installUrl: pushUrl.trim() } : {},
+                }));
+
+                const res = await fetch('https://exp.host/--/api/v2/push/send', {
+                  method: 'POST',
+                  headers: {
+                    'Accept': 'application/json',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(messages),
+                });
+
+                if (res.status !== 200) {
+                  throw new Error(`Expo API returned status ${res.status}`);
+                }
+                sentCount += chunk.length;
+              }
+
+              Alert.alert("Thành công", `Đã gửi thông báo đẩy tới ${sentCount}/${tokens.length} thiết bị.`);
+              setPushTitle('');
+              setPushBody('');
+              setPushUrl('');
+            } catch (error: any) {
+              Alert.alert("Lỗi gửi thông báo", error.message || "Đã xảy ra lỗi không xác định.");
+            }
+            setIsSendingPush(false);
+          }
+        }
+      ]
+    );
   };
 
   const addVipDays = async (uid: string, currentExpire: any, daysToAdd: number) => {
@@ -342,11 +438,121 @@ export default function AdminScreen() {
           <View>
             <Text style={styles.title}>CẤU HÌNH HỆ THỐNG APP</Text>
             <View style={styles.userCard}>
-              <View style={styles.settingRow}><Text style={styles.settingText}>Bật gói 14 Ngày</Text><Switch value={sysConfig.enable14Days} onValueChange={(val) => setSysConfig({...sysConfig, enable14Days: val})} /></View>
-              <View style={styles.settingRow}><Text style={styles.settingText}>Bật Popup thông báo</Text><Switch value={sysConfig.showPopup} onValueChange={(val) => setSysConfig({...sysConfig, showPopup: val})} /></View>
-              <Text style={{color: '#8E8E93', marginBottom: 10}}>Nội dung Popup:</Text>
-              <TextInput style={styles.textArea} placeholder="Nhập thông báo..." placeholderTextColor="#555" multiline value={sysConfig.popupMsg} onChangeText={(txt) => setSysConfig({...sysConfig, popupMsg: txt})} />
-              <TouchableOpacity style={[styles.submitBtn, {marginTop: 20}]} onPress={saveSettings}><Text style={styles.submitBtnText}>LƯU CÀI ĐẶT</Text></TouchableOpacity>
+              <View style={styles.settingRow}>
+                <Text style={styles.settingText}>Bật gói 14 Ngày</Text>
+                <Switch 
+                  value={sysConfig.enable14Days} 
+                  onValueChange={(val) => setSysConfig({...sysConfig, enable14Days: val})} 
+                />
+              </View>
+              <TouchableOpacity style={styles.submitBtn} onPress={saveSettings}>
+                <Text style={styles.submitBtnText}>LƯU CẤU HÌNH CHUNG</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.title}>THÔNG BÁO TRONG APP (TRANG CHỦ)</Text>
+            <View style={styles.userCard}>
+              <View style={styles.settingRow}>
+                <Text style={styles.settingText}>Bật Popup thông báo</Text>
+                <Switch 
+                  value={sysConfig.homePopupShow} 
+                  onValueChange={(val) => setSysConfig({...sysConfig, homePopupShow: val})} 
+                />
+              </View>
+              
+              <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Tiêu đề:</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Nhập tiêu đề..." 
+                placeholderTextColor="#555" 
+                value={sysConfig.homePopupTitle} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, homePopupTitle: txt})} 
+              />
+              
+              <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Nội dung Popup:</Text>
+              <TextInput 
+                style={styles.textArea} 
+                placeholder="Nhập nội dung..." 
+                placeholderTextColor="#555" 
+                multiline 
+                value={sysConfig.homePopupMsg} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, homePopupMsg: txt})} 
+              />
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>URL Hình ảnh (Banner):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Link hình ảnh (VD: https://...)" 
+                placeholderTextColor="#555" 
+                value={sysConfig.homePopupImg} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, homePopupImg: txt})} 
+              />
+              {sysConfig.homePopupImg ? (
+                <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 0.8, borderColor: COLORS.border }}>
+                  <Image source={{ uri: sysConfig.homePopupImg }} style={{ width: '100%', height: 120 }} resizeMode="cover" />
+                </View>
+              ) : null}
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>URL Hành động (Khi nhấn nút):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Đường dẫn liên kết (VD: https://...)" 
+                placeholderTextColor="#555" 
+                value={sysConfig.homePopupUrl} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, homePopupUrl: txt})} 
+              />
+
+              <TouchableOpacity style={[styles.submitBtn, {marginTop: 20, backgroundColor: '#30D158'}]} onPress={saveSettings}>
+                <Text style={styles.submitBtnText}>LƯU THÔNG BÁO TRONG APP</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.title}>GỬI THÔNG BÁO MÁY (PUSH NOTIFICATIONS)</Text>
+            <View style={styles.userCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 0.8, borderColor: COLORS.border }}>
+                <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Thiết bị đã đăng ký:</Text>
+                <Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 16 }}>{registeredDeviceCount} thiết bị</Text>
+              </View>
+
+              <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Tiêu đề thông báo đẩy:</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Nhập tiêu đề push..." 
+                placeholderTextColor="#555" 
+                value={pushTitle} 
+                onChangeText={setPushTitle} 
+              />
+
+              <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Nội dung thông báo đẩy:</Text>
+              <TextInput 
+                style={styles.textArea} 
+                placeholder="Nhập nội dung push..." 
+                placeholderTextColor="#555" 
+                multiline 
+                value={pushBody} 
+                onChangeText={setPushBody} 
+              />
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>URL hành động đính kèm (Ví dụ: link tải IPA):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Link hành động (nếu có)..." 
+                placeholderTextColor="#555" 
+                value={pushUrl} 
+                onChangeText={setPushUrl} 
+              />
+
+              <TouchableOpacity 
+                style={[styles.submitBtn, {marginTop: 20, backgroundColor: COLORS.danger}]} 
+                onPress={handleSendPushNotifications}
+                disabled={isSendingPush}
+              >
+                {isSendingPush ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>PHÁT THÔNG BÁO ĐẨY HÀNG LOẠT</Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         )}
