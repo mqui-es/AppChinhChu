@@ -1188,5 +1188,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     marginTop: 10,
+  },
+  rowLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   }
 });

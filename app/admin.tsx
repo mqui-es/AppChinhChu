@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, TextInput,
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, SIZES, SHADOWS } from '../constants/theme';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate } from '../constants/theme';
 
 // 🔴 ĐÃ CẬP NHẬT FULL BỘ ICON TỪ LUCIDE GIỐNG Y HỆT WEB CỦA SẾP
 import { X, ShieldCheck, ChevronLeft, CalendarPlus, UserX, LayoutDashboard, Ticket, Banknote, Users, Crown, Gem, Trash2, Box } from 'lucide-react-native';
@@ -15,6 +15,8 @@ import { doc, getDoc, setDoc, collection, getDocs, updateDoc, Timestamp, deleteD
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXnH5KjwQVafxGW_W2KlpDY9KHBx_0TAmaNZBqUaPz9WR8T1PDKwB9un37fNA_YO7pmg/exec";
 
 export default function AdminScreen() {
+  useThemeUpdate();
+  const styles = getStyles(COLORS);
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
@@ -44,6 +46,11 @@ export default function AdminScreen() {
   const [pushUrl, setPushUrl] = useState('');
   const [isSendingPush, setIsSendingPush] = useState(false);
   const [registeredDeviceCount, setRegisteredDeviceCount] = useState(0);
+  
+  // State Hẹn giờ gửi
+  const [scheduleDelay, setScheduleDelay] = useState('0'); // '0'=ngay, '5'=5m, '15'=15m, '60'=1h, '180'=3h, '1440'=1d, 'custom'=tự chọn
+  const [customScheduleTime, setCustomScheduleTime] = useState(new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16)); // YYYY-MM-DDTHH:MM
+  const [scheduledPushes, setScheduledPushes] = useState<any[]>([]);
   
   // Thống kê
   const [stats, setStats] = useState({ revenue: 0, totalUsers: 0, totalVips: 0, totalCoins: 0 });
@@ -134,12 +141,26 @@ export default function AdminScreen() {
     gcSnap.forEach(d => gcArr.push({ id: d.id, ...d.data() }));
     setGiftcodesList(gcArr);
 
-    // Tải số lượng thiết bị đăng ký nhận thông báo
+    // Tải số lượng thiết bị đăng ký nhận thông báo từ Google Sheet
     try {
-      const pushTokensSnap = await getDocs(collection(db, 'push_tokens'));
-      setRegisteredDeviceCount(pushTokensSnap.size);
+      const resCount = await fetch(`${SCRIPT_URL}?action=get_push_tokens_count&pin=${encodeURIComponent(pin)}`);
+      const jsonCount = await resCount.json();
+      if (jsonCount.success) {
+        setRegisteredDeviceCount(jsonCount.count);
+      }
     } catch (e) {
       console.warn("Failed to fetch push tokens count:", e);
+    }
+
+    // Tải danh sách thông báo đã hẹn giờ
+    try {
+      const resSched = await fetch(`${SCRIPT_URL}?action=get_scheduled_pushes&pin=${encodeURIComponent(pin)}`);
+      const jsonSched = await resSched.json();
+      if (jsonSched.success) {
+        setScheduledPushes(jsonSched.data || []);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch scheduled pushes:", e);
     }
   };
 
@@ -155,7 +176,7 @@ export default function AdminScreen() {
 
     Alert.alert(
       "Xác nhận gửi",
-      `Gửi thông báo đẩy đến tất cả ${registeredDeviceCount} thiết bị?`,
+      `Gửi thông báo đẩy đến tất cả ${registeredDeviceCount} thiết bị ngay bây giờ?`,
       [
         { text: "Hủy", style: "cancel" },
         {
@@ -163,57 +184,97 @@ export default function AdminScreen() {
           onPress: async () => {
             setIsSendingPush(true);
             try {
-              const tokensSnap = await getDocs(collection(db, 'push_tokens'));
-              const tokens: string[] = [];
-              tokensSnap.forEach(d => {
-                const tData = d.data();
-                if (tData.token) tokens.push(tData.token);
-              });
-
-              if (tokens.length === 0) {
-                Alert.alert("Thông tin", "Không tìm thấy thiết bị nào đã đăng ký nhận thông báo.");
-                setIsSendingPush(false);
-                return;
+              const res = await fetch(`${SCRIPT_URL}?action=send_push_now&pin=${encodeURIComponent(pin)}&title=${encodeURIComponent(pushTitle)}&body=${encodeURIComponent(pushBody)}&url=${encodeURIComponent(pushUrl)}`);
+              const json = await res.json();
+              if (json.success) {
+                Alert.alert("Thành công", `Đã gửi thông báo tới ${json.count} thiết bị.`);
+                setPushTitle('');
+                setPushBody('');
+                setPushUrl('');
+                loadFirebaseData();
+              } else {
+                Alert.alert("Lỗi", json.error || "Gửi thất bại.");
               }
-
-              // Send in batches of 100 to Expo Push API
-              const chunkSize = 100;
-              let sentCount = 0;
-
-              for (let i = 0; i < tokens.length; i += chunkSize) {
-                const chunk = tokens.slice(i, i + chunkSize);
-                const messages = chunk.map(token => ({
-                  to: token,
-                  sound: 'default',
-                  title: pushTitle.trim(),
-                  body: pushBody.trim(),
-                  data: pushUrl.trim() ? { installUrl: pushUrl.trim() } : {},
-                }));
-
-                const res = await fetch('https://exp.host/--/api/v2/push/send', {
-                  method: 'POST',
-                  headers: {
-                    'Accept': 'application/json',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(messages),
-                });
-
-                if (res.status !== 200) {
-                  throw new Error(`Expo API returned status ${res.status}`);
-                }
-                sentCount += chunk.length;
-              }
-
-              Alert.alert("Thành công", `Đã gửi thông báo đẩy tới ${sentCount}/${tokens.length} thiết bị.`);
-              setPushTitle('');
-              setPushBody('');
-              setPushUrl('');
             } catch (error: any) {
-              Alert.alert("Lỗi gửi thông báo", error.message || "Đã xảy ra lỗi không xác định.");
+              Alert.alert("Lỗi gửi thông báo", error.message || "Không thể kết nối máy chủ.");
             }
             setIsSendingPush(false);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSchedulePush = async () => {
+    if (!pushTitle.trim() || !pushBody.trim()) {
+      return Alert.alert("Lỗi", "Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo đẩy!");
+    }
+
+    // Tính thời gian gửi
+    let targetTime = new Date();
+    if (scheduleDelay === 'custom') {
+      targetTime = new Date(customScheduleTime);
+      if (isNaN(targetTime.getTime())) {
+        return Alert.alert("Lỗi", "Định dạng thời gian tự chọn không hợp lệ!");
+      }
+    } else {
+      targetTime = new Date(Date.now() + parseInt(scheduleDelay) * 60 * 1000);
+    }
+
+    Alert.alert(
+      "Xác nhận đặt lịch",
+      `Hẹn giờ gửi thông báo vào lúc: ${targetTime.toLocaleString('vi-VN')}?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đồng ý",
+          onPress: async () => {
+            setIsSendingPush(true);
+            try {
+              const res = await fetch(`${SCRIPT_URL}?action=schedule_push&pin=${encodeURIComponent(pin)}&title=${encodeURIComponent(pushTitle)}&body=${encodeURIComponent(pushBody)}&url=${encodeURIComponent(pushUrl)}&time=${encodeURIComponent(targetTime.toISOString())}`);
+              const json = await res.json();
+              if (json.success) {
+                Alert.alert("Thành công", "Đã đặt lịch gửi thông báo đẩy!");
+                setPushTitle('');
+                setPushBody('');
+                setPushUrl('');
+                setScheduleDelay('0');
+                loadFirebaseData();
+              } else {
+                Alert.alert("Lỗi", json.error || "Đặt lịch thất bại.");
+              }
+            } catch (error: any) {
+              Alert.alert("Lỗi đặt lịch", error.message || "Không thể kết nối máy chủ.");
+            }
+            setIsSendingPush(false);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteScheduledPush = async (row: number, info: string) => {
+    Alert.alert(
+      "Xác nhận xóa",
+      `Xóa lịch hẹn gửi thông báo [${info}]?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await fetch(`${SCRIPT_URL}?action=delete_scheduled_push&pin=${encodeURIComponent(pin)}&row=${row}`);
+              const json = await res.json();
+              if (json.success) {
+                Alert.alert("Thành công", "Đã xóa lịch gửi.");
+                loadFirebaseData();
+              } else {
+                Alert.alert("Lỗi", json.error || "Xóa thất bại.");
+              }
+            } catch (error: any) {
+              Alert.alert("Lỗi kết nối", error.message || "Không thể kết nối máy chủ.");
+            }
           }
         }
       ]
@@ -290,7 +351,7 @@ export default function AdminScreen() {
            <View style={[styles.loginBox, SHADOWS.glowDark]}>
               <View style={styles.logoCircle}><ShieldCheck color="#FF453A" size={40} /></View>
               <Text style={styles.loginTitle}>Trung Tâm Điều Hành</Text>
-              <View style={styles.inputGroup}><TextInput style={styles.input} placeholder="Mã PIN..." placeholderTextColor="#555" secureTextEntry value={pin} onChangeText={setPin} /></View>
+              <View style={styles.inputGroup}><TextInput style={styles.input} placeholder="Mã PIN..." placeholderTextColor={COLORS.textMuted} secureTextEntry value={pin} onChangeText={setPin} /></View>
               <TouchableOpacity style={styles.submitBtn} onPress={handleLoginAdmin} disabled={isVerifying}>{isVerifying ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>XÁC NHẬN</Text>}</TouchableOpacity>
            </View>
         </KeyboardAvoidingView>
@@ -388,7 +449,7 @@ export default function AdminScreen() {
                   <TouchableOpacity key={t} style={[styles.typeBtn, newAccType === t && styles.typeBtnActive]} onPress={() => setNewAccType(t)}><Text style={[styles.typeBtnText, newAccType === t && {color: '#FFF'}]}>{t}</Text></TouchableOpacity>
                 ))}
               </View>
-              <TextInput style={[styles.addInput, {marginBottom: 15}]} placeholder="Email | Mật khẩu..." placeholderTextColor="#8E8E93" value={newAccInfo} onChangeText={setNewAccInfo} multiline/>
+              <TextInput style={[styles.addInput, {marginBottom: 15}]} placeholder="Email | Mật khẩu..." placeholderTextColor={COLORS.textMuted} value={newAccInfo} onChangeText={setNewAccInfo} multiline/>
               <TouchableOpacity style={styles.submitBtn} onPress={handleAddAccount} disabled={isAdding}>{isAdding ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>BƠM VÀO KHO HỆ THỐNG</Text>}</TouchableOpacity>
             </View>
             <Text style={styles.title}>KHO GẦN ĐÂY</Text>
@@ -403,15 +464,15 @@ export default function AdminScreen() {
           <View>
             <Text style={styles.title}>TẠO MÃ KHUYẾN MÃI (GIFTCODE)</Text>
             <View style={styles.userCard}>
-               <TextInput style={styles.addInput} placeholder="Tên mã (VD: TANG50XU)" placeholderTextColor="#8E8E93" value={gcName} onChangeText={setGcName} autoCapitalize="characters"/>
+               <TextInput style={styles.addInput} placeholder="Tên mã (VD: TANG50XU)" placeholderTextColor={COLORS.textMuted} value={gcName} onChangeText={setGcName} autoCapitalize="characters"/>
                
                <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
                  <TouchableOpacity style={[styles.typeBtn, gcType === 'coins' && {borderColor: '#AF52DE', backgroundColor: 'rgba(175,82,222,0.1)'}]} onPress={() => setGcType('coins')}><Gem color={gcType === 'coins' ? '#AF52DE' : '#888'} size={16}/><Text style={[styles.typeBtnText, gcType === 'coins' && {color: '#AF52DE'}]}>Tặng Xu</Text></TouchableOpacity>
                  <TouchableOpacity style={[styles.typeBtn, gcType === 'vip' && {borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)'}]} onPress={() => setGcType('vip')}><Crown color={gcType === 'vip' ? '#FFD700' : '#888'} size={16}/><Text style={[styles.typeBtnText, gcType === 'vip' && {color: '#FFD700'}]}>Tặng VIP</Text></TouchableOpacity>
                </View>
 
-               <TextInput style={styles.addInput} placeholder={gcType === 'coins' ? "Số xu tặng (VD: 50)" : "Số ngày VIP tặng (VD: 3)"} placeholderTextColor="#8E8E93" value={gcValue} onChangeText={setGcValue} keyboardType="numeric"/>
-               <TextInput style={styles.addInput} placeholder="Giới hạn lượt dùng (0 = Vô hạn)" placeholderTextColor="#8E8E93" value={gcLimit} onChangeText={setGcLimit} keyboardType="numeric"/>
+               <TextInput style={styles.addInput} placeholder={gcType === 'coins' ? "Số xu tặng (VD: 50)" : "Số ngày VIP tặng (VD: 3)"} placeholderTextColor={COLORS.textMuted} value={gcValue} onChangeText={setGcValue} keyboardType="numeric"/>
+               <TextInput style={styles.addInput} placeholder="Giới hạn lượt dùng (0 = Vô hạn)" placeholderTextColor={COLORS.textMuted} value={gcLimit} onChangeText={setGcLimit} keyboardType="numeric"/>
                
                <TouchableOpacity style={[styles.submitBtn, {backgroundColor: '#0A84FF'}]} onPress={createNewGiftcode} disabled={isCreatingGc}>{isCreatingGc ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitBtnText}>PHÁT HÀNH MÃ</Text>}</TouchableOpacity>
             </View>
@@ -464,7 +525,7 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.addInput} 
                 placeholder="Nhập tiêu đề..." 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 value={sysConfig.homePopupTitle} 
                 onChangeText={(txt) => setSysConfig({...sysConfig, homePopupTitle: txt})} 
               />
@@ -473,7 +534,7 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.textArea} 
                 placeholder="Nhập nội dung..." 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 multiline 
                 value={sysConfig.homePopupMsg} 
                 onChangeText={(txt) => setSysConfig({...sysConfig, homePopupMsg: txt})} 
@@ -483,7 +544,7 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.addInput} 
                 placeholder="Link hình ảnh (VD: https://...)" 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 value={sysConfig.homePopupImg} 
                 onChangeText={(txt) => setSysConfig({...sysConfig, homePopupImg: txt})} 
               />
@@ -497,7 +558,7 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.addInput} 
                 placeholder="Đường dẫn liên kết (VD: https://...)" 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 value={sysConfig.homePopupUrl} 
                 onChangeText={(txt) => setSysConfig({...sysConfig, homePopupUrl: txt})} 
               />
@@ -518,7 +579,7 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.addInput} 
                 placeholder="Nhập tiêu đề push..." 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 value={pushTitle} 
                 onChangeText={setPushTitle} 
               />
@@ -527,7 +588,7 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.textArea} 
                 placeholder="Nhập nội dung push..." 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 multiline 
                 value={pushBody} 
                 onChangeText={setPushBody} 
@@ -537,23 +598,125 @@ export default function AdminScreen() {
               <TextInput 
                 style={styles.addInput} 
                 placeholder="Link hành động (nếu có)..." 
-                placeholderTextColor="#555" 
+                placeholderTextColor={COLORS.textMuted} 
                 value={pushUrl} 
                 onChangeText={setPushUrl} 
               />
 
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 10, fontSize: 13, fontWeight: '700'}}>Hẹn giờ gửi thông báo:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 5 }}>
+                {[
+                  { label: 'Gửi ngay', value: '0' },
+                  { label: '5 Phút', value: '5' },
+                  { label: '15 Phút', value: '15' },
+                  { label: '1 Giờ', value: '60' },
+                  { label: '3 Giờ', value: '180' },
+                  { label: '1 Ngày', value: '1440' },
+                  { label: 'Tự chọn', value: 'custom' },
+                ].map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.typeBtn, 
+                      { paddingHorizontal: 12, height: 38 },
+                      scheduleDelay === opt.value && { borderColor: COLORS.primary, backgroundColor: 'rgba(255, 69, 58, 0.1)' }
+                    ]}
+                    onPress={() => setScheduleDelay(opt.value)}
+                  >
+                    <Text style={[
+                      styles.typeBtnText, 
+                      { fontSize: 12 },
+                      scheduleDelay === opt.value && { color: COLORS.primary }
+                    ]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {scheduleDelay === 'custom' ? (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 12}}>Nhập thời gian gửi (Định dạng: YYYY-MM-DDTHH:MM):</Text>
+                  <TextInput
+                    style={styles.addInput}
+                    placeholder="VD: 2026-06-01T15:30"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={customScheduleTime}
+                    onChangeText={setCustomScheduleTime}
+                  />
+                </View>
+              ) : null}
+
               <TouchableOpacity 
-                style={[styles.submitBtn, {marginTop: 20, backgroundColor: COLORS.danger}]} 
-                onPress={handleSendPushNotifications}
+                style={[styles.submitBtn, {marginTop: 20, backgroundColor: scheduleDelay === '0' ? COLORS.danger : '#FF9500'}]} 
+                onPress={scheduleDelay === '0' ? handleSendPushNotifications : handleSchedulePush}
                 disabled={isSendingPush}
               >
                 {isSendingPush ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={styles.submitBtnText}>PHÁT THÔNG BÁO ĐẨY HÀNG LOẠT</Text>
+                  <Text style={styles.submitBtnText}>
+                    {scheduleDelay === '0' ? 'PHÁT THÔNG BÁO ĐẨY HÀNG LOẠT' : 'ĐẶT LỊCH HẸN GIỜ GỬI'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
+
+            <Text style={styles.title}>DANH SÁCH LỊCH HẸN GỬI THÔNG BÁO</Text>
+            {scheduledPushes.length === 0 ? (
+              <View style={styles.userCard}>
+                <Text style={{ color: '#8E8E93', textAlign: 'center', fontSize: 13 }}>Không có lịch hẹn nào đang có.</Text>
+              </View>
+            ) : (
+              scheduledPushes.map((item, idx) => {
+                const isPending = item.status === 'PENDING';
+                return (
+                  <View key={idx} style={[styles.userCard, { padding: 15, marginBottom: 10 }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 15, flex: 1, marginRight: 10 }} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <View style={{
+                        backgroundColor: isPending ? 'rgba(255, 149, 0, 0.12)' : item.status.startsWith('FAILED') ? 'rgba(255, 69, 58, 0.12)' : 'rgba(48, 209, 88, 0.12)',
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 6,
+                        borderWidth: 0.5,
+                        borderColor: isPending ? 'rgba(255, 149, 0, 0.4)' : item.status.startsWith('FAILED') ? 'rgba(255, 69, 58, 0.4)' : 'rgba(48, 209, 88, 0.4)'
+                      }}>
+                        <Text style={{ color: isPending ? '#FF9500' : item.status.startsWith('FAILED') ? '#FF453A' : '#30D158', fontSize: 10, fontWeight: 'bold' }}>
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={{ color: '#8E8E93', fontSize: 13, marginBottom: 10 }} numberOfLines={2}>
+                      {item.body}
+                    </Text>
+
+                    {item.url ? (
+                      <Text style={{ color: COLORS.primary, fontSize: 11, marginBottom: 10 }} numberOfLines={1}>
+                        Liên kết: {item.url}
+                      </Text>
+                    ) : null}
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 0.5, borderColor: 'rgba(255, 255, 255, 0.05)' }}>
+                      <Text style={{ color: '#555', fontSize: 11 }}>
+                        Gửi lúc: {new Date(item.time).toLocaleString('vi-VN')}
+                      </Text>
+                      {isPending ? (
+                        <TouchableOpacity 
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,69,58,0.1)', borderRadius: 8 }}
+                          onPress={() => handleDeleteScheduledPush(item.row, item.title)}
+                        >
+                          <Text style={{ color: '#FF453A', fontSize: 12, fontWeight: 'bold' }}>Hủy lịch</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })
+            )}
           </View>
         )}
       </ScrollView>
@@ -561,54 +724,73 @@ export default function AdminScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: COLORS.border },
-  headerTitle: { color: COLORS.danger, fontSize: 18, fontWeight: '800', letterSpacing: 1 },
+const getStyles = (theme: typeof COLORS) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: theme.border },
+  headerTitle: { color: theme.danger, fontSize: 18, fontWeight: '800', letterSpacing: 1 },
   backBtn: { padding: 5, marginLeft: -5 },
   tabBar: { paddingHorizontal: 20, paddingVertical: 15, gap: 10 },
-  tabBtn: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 0.8, borderColor: COLORS.border },
+  tabBtn: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 0.8, borderColor: theme.border },
   tabBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.2)' },
-  tabText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  tabText: { color: theme.textMuted, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   content: { padding: 20, paddingBottom: 80 },
 
-  loginContainer: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', padding: 20 },
+  loginContainer: { flex: 1, backgroundColor: theme.background, justifyContent: 'center', padding: 20 },
   closeBtn: { position: 'absolute', top: 60, right: 20, zIndex: 10 },
-  loginBox: { backgroundColor: 'rgba(20,20,24,0.7)', padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 0.8, borderColor: COLORS.border },
+  loginBox: { backgroundColor: theme.surfaceSolid, padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 0.8, borderColor: theme.border },
   logoCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255, 69, 58, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  loginTitle: { color: COLORS.text, fontSize: 24, fontWeight: '800', marginBottom: 25 },
-  inputGroup: { width: '100%', height: 55, backgroundColor: '#000', borderRadius: 16, marginBottom: 20, paddingHorizontal: 15, borderWidth: 0.8, borderColor: COLORS.border, justifyContent: 'center' },
-  input: { color: COLORS.text, fontSize: 18, textAlign: 'center', fontWeight: 'bold' },
-  submitBtn: { backgroundColor: COLORS.danger, width: '100%', height: 55, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  loginTitle: { color: theme.text, fontSize: 24, fontWeight: '800', marginBottom: 25 },
+  inputGroup: { width: '100%', height: 55, backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.05)' : '#000', borderRadius: 16, marginBottom: 20, paddingHorizontal: 15, borderWidth: 0.8, borderColor: theme.border, justifyContent: 'center' },
+  input: { color: theme.text, fontSize: 18, textAlign: 'center', fontWeight: 'bold' },
+  submitBtn: { backgroundColor: theme.danger, width: '100%', height: 55, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
 
-  title: { color: COLORS.textMuted, fontSize: 13, fontWeight: '800', marginBottom: 15, letterSpacing: 1 },
-  userCard: { backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, marginBottom: 15, borderWidth: 0.8, borderColor: COLORS.border },
-  userName: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
-  userEmail: { color: COLORS.textMuted, fontSize: 14, marginTop: 4 },
+  title: { color: theme.textMuted, fontSize: 13, fontWeight: '800', marginBottom: 15, letterSpacing: 1 },
+  userCard: { backgroundColor: theme.surfaceCard, padding: 20, borderRadius: 16, marginBottom: 15, borderWidth: 0.8, borderColor: theme.border },
+  userName: { color: theme.text, fontSize: 18, fontWeight: '700' },
+  userEmail: { color: theme.textMuted, fontSize: 14, marginTop: 4 },
   vipTag: { alignSelf: 'flex-start', backgroundColor: 'rgba(48, 209, 88, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 0.8, borderColor: 'rgba(48, 209, 88, 0.5)' },
-  vipTagText: { color: COLORS.success, fontSize: 12, fontWeight: 'bold' },
+  vipTagText: { color: theme.success, fontSize: 12, fontWeight: 'bold' },
   
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 15 },
-  actionBtn: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 0.8, borderColor: COLORS.border },
-  actionText: { color: COLORS.text, fontSize: 12, fontWeight: 'bold' },
-  cancelVipBtn: { flexDirection: 'row', marginTop: 8, backgroundColor: COLORS.danger, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { flex: 1, flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 0.8, borderColor: theme.border },
+  actionText: { color: theme.text, fontSize: 12, fontWeight: 'bold' },
+  cancelVipBtn: { flexDirection: 'row', marginTop: 8, backgroundColor: theme.danger, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 15, borderBottomWidth: 0.8, borderBottomColor: COLORS.border },
-  settingText: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
-  textArea: { backgroundColor: 'rgba(0,0,0,0.4)', color: COLORS.text, padding: 15, borderRadius: 12, height: 120, textAlignVertical: 'top', borderWidth: 0.8, borderColor: COLORS.border, fontSize: 15 },
-  addInput: { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12, height: 50, color: COLORS.text, paddingHorizontal: 15, marginBottom: 10, borderWidth: 0.8, borderColor: COLORS.border },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 15, borderBottomWidth: 0.8, borderBottomColor: theme.border },
+  settingText: { color: theme.text, fontSize: 16, fontWeight: '600' },
+  textArea: { 
+    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', 
+    color: theme.text, 
+    padding: 15, 
+    borderRadius: 12, 
+    height: 120, 
+    textAlignVertical: 'top', 
+    borderWidth: 0.8, 
+    borderColor: theme.border, 
+    fontSize: 15 
+  },
+  addInput: { 
+    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', 
+    borderRadius: 12, 
+    height: 50, 
+    color: theme.text, 
+    paddingHorizontal: 15, 
+    marginBottom: 10, 
+    borderWidth: 0.8, 
+    borderColor: theme.border 
+  },
 
   // Dashbard & Inventory
-  statCard: { width: '48%', backgroundColor: 'rgba(255,255,255,0.03)', padding: 15, borderRadius: 16, borderWidth: 0.8, borderColor: COLORS.border },
+  statCard: { width: '48%', backgroundColor: theme.surfaceCard, padding: 15, borderRadius: 16, borderWidth: 0.8, borderColor: theme.border },
   statIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  statLabel: { color: COLORS.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 4 },
-  statValue: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
-  invCard: { backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: COLORS.border, marginBottom: 10 },
+  statLabel: { color: theme.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 4 },
+  statValue: { color: theme.text, fontSize: 22, fontWeight: '900' },
+  invCard: { backgroundColor: theme.surfaceCard, padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: theme.border, marginBottom: 10 },
 
-  typeBtn: { flex: 1, flexDirection: 'row', height: 45, borderRadius: 10, borderWidth: 0.8, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  typeBtn: { flex: 1, flexDirection: 'row', height: 45, borderRadius: 10, borderWidth: 0.8, borderColor: theme.border, alignItems: 'center', justifyContent: 'center', gap: 6 },
   typeBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: '#FFF' },
-  typeBtnText: { color: COLORS.textMuted, fontSize: 13, fontWeight: 'bold' },
+  typeBtnText: { color: theme.textMuted, fontSize: 13, fontWeight: 'bold' },
 
-  gcCard: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: COLORS.border, marginBottom: 10, alignItems: 'center' }
+  gcCard: { flexDirection: 'row', backgroundColor: theme.surfaceCard, padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: theme.border, marginBottom: 10, alignItems: 'center' }
 });

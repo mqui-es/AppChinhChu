@@ -12,6 +12,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import Constants from 'expo-constants';
 
+const GOOGLE_SHEET_WEBHOOK = "https://script.google.com/macros/s/AKfycbyXnH5KjwQVafxGW_W2KlpDY9KHBx_0TAmaNZBqUaPz9WR8T1PDKwB9un37fNA_YO7pmg/exec";
+
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -82,12 +84,8 @@ export default function RootLayout() {
       const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
       const token = tokenData.data;
       if (token) {
-        await setDoc(doc(db, 'push_tokens', token), {
-          token,
-          uid: auth.currentUser?.uid || null,
-          platform: Platform.OS,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
+        const url = `${GOOGLE_SHEET_WEBHOOK}?action=register_push_token&token=${encodeURIComponent(token)}&uid=${encodeURIComponent(auth.currentUser?.uid || '')}&platform=${encodeURIComponent(Platform.OS)}`;
+        await fetch(url);
       }
     } catch (e) {
       console.warn("Failed to register push token:", e);
@@ -129,12 +127,8 @@ export default function RootLayout() {
             const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
             const token = tokenData.data;
             if (token) {
-              await setDoc(doc(db, 'push_tokens', token), {
-                token,
-                uid: user?.uid || null,
-                platform: Platform.OS,
-                updatedAt: serverTimestamp(),
-              }, { merge: true });
+              const url = `${GOOGLE_SHEET_WEBHOOK}?action=register_push_token&token=${encodeURIComponent(token)}&uid=${encodeURIComponent(user?.uid || '')}&platform=${encodeURIComponent(Platform.OS)}`;
+              await fetch(url);
             }
           }
         }
