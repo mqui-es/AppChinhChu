@@ -49,7 +49,9 @@ export default function AdminScreen() {
   
   // State Hẹn giờ gửi
   const [scheduleDelay, setScheduleDelay] = useState('0'); // '0'=ngay, '5'=5m, '15'=15m, '60'=1h, '180'=3h, '1440'=1d, 'custom'=tự chọn
-  const [customScheduleTime, setCustomScheduleTime] = useState(new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16)); // YYYY-MM-DDTHH:MM
+  const [customDay, setCustomDay] = useState<'today' | 'tomorrow'>('today');
+  const [customHour, setCustomHour] = useState(new Date().getHours());
+  const [customMinute, setCustomMinute] = useState(Math.ceil(new Date().getMinutes() / 5) * 5 % 60);
   const [scheduledPushes, setScheduledPushes] = useState<any[]>([]);
   
   // Thống kê
@@ -213,9 +215,16 @@ export default function AdminScreen() {
     // Tính thời gian gửi
     let targetTime = new Date();
     if (scheduleDelay === 'custom') {
-      targetTime = new Date(customScheduleTime);
-      if (isNaN(targetTime.getTime())) {
-        return Alert.alert("Lỗi", "Định dạng thời gian tự chọn không hợp lệ!");
+      if (customDay === 'tomorrow') {
+        targetTime.setDate(targetTime.getDate() + 1);
+      }
+      targetTime.setHours(customHour);
+      targetTime.setMinutes(customMinute);
+      targetTime.setSeconds(0);
+      targetTime.setMilliseconds(0);
+
+      if (targetTime.getTime() <= Date.now()) {
+        return Alert.alert("Lỗi", "Thời gian hẹn giờ phải lớn hơn thời gian hiện tại!");
       }
     } else {
       targetTime = new Date(Date.now() + parseInt(scheduleDelay) * 60 * 1000);
@@ -635,15 +644,64 @@ export default function AdminScreen() {
               </ScrollView>
 
               {scheduleDelay === 'custom' ? (
-                <View style={{ marginTop: 12 }}>
-                  <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 12}}>Nhập thời gian gửi (Định dạng: YYYY-MM-DDTHH:MM):</Text>
-                  <TextInput
-                    style={styles.addInput}
-                    placeholder="VD: 2026-06-01T15:30"
-                    placeholderTextColor={COLORS.textMuted}
-                    value={customScheduleTime}
-                    onChangeText={setCustomScheduleTime}
-                  />
+                <View style={[styles.customTimeContainer, { borderColor: COLORS.border }]}>
+                  <Text style={{ color: '#8E8E93', marginBottom: 12, fontSize: 13, fontWeight: '700' }}>Tùy chỉnh thời gian hẹn gửi:</Text>
+                  
+                  {/* Selector ngày */}
+                  <View style={styles.timeSelectRow}>
+                    <Text style={[styles.timeSelectLabel, { color: COLORS.text }]}>Ngày gửi:</Text>
+                    <View style={styles.timeSelectorGroup}>
+                      <TouchableOpacity 
+                        style={[styles.timeChip, customDay === 'today' && styles.timeChipActive]} 
+                        onPress={() => setCustomDay('today')}
+                      >
+                        <Text style={[styles.timeChipText, customDay === 'today' && { color: '#FFF' }]}>Hôm nay</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.timeChip, customDay === 'tomorrow' && styles.timeChipActive]} 
+                        onPress={() => setCustomDay('tomorrow')}
+                      >
+                        <Text style={[styles.timeChipText, customDay === 'tomorrow' && { color: '#FFF' }]}>Ngày mai</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Selector giờ */}
+                  <View style={styles.timeSelectRow}>
+                    <Text style={[styles.timeSelectLabel, { color: COLORS.text }]}>Giờ:</Text>
+                    <View style={styles.counterControl}>
+                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomHour(prev => (prev === 0 ? 23 : prev - 1))}>
+                        <Text style={styles.counterBtnText}>-</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.counterValue, { color: COLORS.text }]}>{String(customHour).padStart(2, '0')}</Text>
+                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomHour(prev => (prev === 23 ? 0 : prev + 1))}>
+                        <Text style={styles.counterBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Selector phút */}
+                  <View style={styles.timeSelectRow}>
+                    <Text style={[styles.timeSelectLabel, { color: COLORS.text }]}>Phút:</Text>
+                    <View style={styles.counterControl}>
+                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomMinute(prev => (prev === 0 ? 55 : prev - 5))}>
+                        <Text style={styles.counterBtnText}>-</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.counterValue, { color: COLORS.text }]}>{String(customMinute).padStart(2, '0')}</Text>
+                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomMinute(prev => (prev === 55 ? 0 : prev + 5))}>
+                        <Text style={styles.counterBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Hiển thị tóm tắt thời gian dự kiến gửi */}
+                  <View style={styles.timeSummaryBox}>
+                    <Text style={styles.timeSummaryText}>
+                      Thời gian dự kiến: <Text style={{ fontWeight: 'bold', color: COLORS.primary }}>
+                        {customDay === 'today' ? 'Hôm nay' : 'Ngày mai'}, lúc {String(customHour).padStart(2, '0')}:{String(customMinute).padStart(2, '0')}
+                      </Text>
+                    </Text>
+                  </View>
                 </View>
               ) : null}
 
@@ -792,5 +850,83 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   typeBtnActive: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: '#FFF' },
   typeBtnText: { color: theme.textMuted, fontSize: 13, fontWeight: 'bold' },
 
-  gcCard: { flexDirection: 'row', backgroundColor: theme.surfaceCard, padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: theme.border, marginBottom: 10, alignItems: 'center' }
+  gcCard: { flexDirection: 'row', backgroundColor: theme.surfaceCard, padding: 20, borderRadius: 16, borderWidth: 0.8, borderColor: theme.border, marginBottom: 10, alignItems: 'center' },
+
+  // Custom Time Selector styles
+  customTimeContainer: {
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    padding: 15,
+    borderRadius: 14,
+    borderWidth: 0.8,
+    marginTop: 10,
+    marginBottom: 10,
+    gap: 12
+  },
+  timeSelectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  timeSelectLabel: {
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  timeSelectorGroup: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  timeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 0.8,
+    borderColor: theme.border,
+    backgroundColor: 'rgba(255,255,255,0.02)'
+  },
+  timeChipActive: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary
+  },
+  timeChipText: {
+    color: theme.textMuted,
+    fontSize: 12,
+    fontWeight: 'bold'
+  },
+  counterControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  counterBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.8,
+    borderColor: theme.border
+  },
+  counterBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold'
+  },
+  counterValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    minWidth: 24,
+    textAlign: 'center'
+  },
+  timeSummaryBox: {
+    marginTop: 5,
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderColor: theme.border,
+    alignItems: 'center'
+  },
+  timeSummaryText: {
+    color: theme.textMuted,
+    fontSize: 12
+  }
 });
