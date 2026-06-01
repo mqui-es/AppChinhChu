@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Switch, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate } from '../constants/theme';
@@ -49,9 +50,9 @@ export default function AdminScreen() {
   
   // State Hẹn giờ gửi
   const [scheduleDelay, setScheduleDelay] = useState('0'); // '0'=ngay, '5'=5m, '15'=15m, '60'=1h, '180'=3h, '1440'=1d, 'custom'=tự chọn
-  const [customDay, setCustomDay] = useState<'today' | 'tomorrow'>('today');
-  const [customHour, setCustomHour] = useState(new Date().getHours());
-  const [customMinute, setCustomMinute] = useState(Math.ceil(new Date().getMinutes() / 5) * 5 % 60);
+  const [customDate, setCustomDate] = useState(new Date(Date.now() + 10 * 60 * 1000));
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [scheduledPushes, setScheduledPushes] = useState<any[]>([]);
   
   // Thống kê
@@ -215,14 +216,7 @@ export default function AdminScreen() {
     // Tính thời gian gửi
     let targetTime = new Date();
     if (scheduleDelay === 'custom') {
-      if (customDay === 'tomorrow') {
-        targetTime.setDate(targetTime.getDate() + 1);
-      }
-      targetTime.setHours(customHour);
-      targetTime.setMinutes(customMinute);
-      targetTime.setSeconds(0);
-      targetTime.setMilliseconds(0);
-
+      targetTime = new Date(customDate);
       if (targetTime.getTime() <= Date.now()) {
         return Alert.alert("Lỗi", "Thời gian hẹn giờ phải lớn hơn thời gian hiện tại!");
       }
@@ -647,58 +641,56 @@ export default function AdminScreen() {
                 <View style={[styles.customTimeContainer, { borderColor: COLORS.border }]}>
                   <Text style={{ color: '#8E8E93', marginBottom: 12, fontSize: 13, fontWeight: '700' }}>Tùy chỉnh thời gian hẹn gửi:</Text>
                   
-                  {/* Selector ngày */}
-                  <View style={styles.timeSelectRow}>
-                    <Text style={[styles.timeSelectLabel, { color: COLORS.text }]}>Ngày gửi:</Text>
-                    <View style={styles.timeSelectorGroup}>
+                  {Platform.OS === 'web' ? (
+                    <Text style={{ color: '#FFF', textAlign: 'center', marginVertical: 10 }}>Không hỗ trợ chọn ngày trên web</Text>
+                  ) : Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={customDate}
+                      mode="datetime"
+                      display="inline"
+                      themeVariant="dark"
+                      minimumDate={new Date()}
+                      onChange={(event, date) => {
+                        if (date) setCustomDate(date);
+                      }}
+                      style={{ alignSelf: 'center', marginTop: 10 }}
+                    />
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginTop: 10 }}>
                       <TouchableOpacity 
-                        style={[styles.timeChip, customDay === 'today' && styles.timeChipActive]} 
-                        onPress={() => setCustomDay('today')}
+                        style={styles.pickerTriggerBtn} 
+                        onPress={() => { setPickerMode('date'); setShowDatePicker(true); }}
                       >
-                        <Text style={[styles.timeChipText, customDay === 'today' && { color: '#FFF' }]}>Hôm nay</Text>
+                        <Text style={styles.pickerTriggerText}>📅 {customDate.toLocaleDateString('vi-VN')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
-                        style={[styles.timeChip, customDay === 'tomorrow' && styles.timeChipActive]} 
-                        onPress={() => setCustomDay('tomorrow')}
+                        style={styles.pickerTriggerBtn} 
+                        onPress={() => { setPickerMode('time'); setShowDatePicker(true); }}
                       >
-                        <Text style={[styles.timeChipText, customDay === 'tomorrow' && { color: '#FFF' }]}>Ngày mai</Text>
+                        <Text style={styles.pickerTriggerText}>⏰ {customDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}</Text>
                       </TouchableOpacity>
+                      
+                      {showDatePicker && (
+                        <DateTimePicker
+                          value={customDate}
+                          mode={pickerMode}
+                          is24Hour={true}
+                          display="default"
+                          minimumDate={new Date()}
+                          onChange={(event, date) => {
+                            setShowDatePicker(false);
+                            if (date) setCustomDate(date);
+                          }}
+                        />
+                      )}
                     </View>
-                  </View>
-
-                  {/* Selector giờ */}
-                  <View style={styles.timeSelectRow}>
-                    <Text style={[styles.timeSelectLabel, { color: COLORS.text }]}>Giờ:</Text>
-                    <View style={styles.counterControl}>
-                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomHour(prev => (prev === 0 ? 23 : prev - 1))}>
-                        <Text style={styles.counterBtnText}>-</Text>
-                      </TouchableOpacity>
-                      <Text style={[styles.counterValue, { color: COLORS.text }]}>{String(customHour).padStart(2, '0')}</Text>
-                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomHour(prev => (prev === 23 ? 0 : prev + 1))}>
-                        <Text style={styles.counterBtnText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Selector phút */}
-                  <View style={styles.timeSelectRow}>
-                    <Text style={[styles.timeSelectLabel, { color: COLORS.text }]}>Phút:</Text>
-                    <View style={styles.counterControl}>
-                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomMinute(prev => (prev === 0 ? 55 : prev - 5))}>
-                        <Text style={styles.counterBtnText}>-</Text>
-                      </TouchableOpacity>
-                      <Text style={[styles.counterValue, { color: COLORS.text }]}>{String(customMinute).padStart(2, '0')}</Text>
-                      <TouchableOpacity style={styles.counterBtn} onPress={() => setCustomMinute(prev => (prev === 55 ? 0 : prev + 5))}>
-                        <Text style={styles.counterBtnText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
+                  )}
 
                   {/* Hiển thị tóm tắt thời gian dự kiến gửi */}
                   <View style={styles.timeSummaryBox}>
                     <Text style={styles.timeSummaryText}>
                       Thời gian dự kiến: <Text style={{ fontWeight: 'bold', color: COLORS.primary }}>
-                        {customDay === 'today' ? 'Hôm nay' : 'Ngày mai'}, lúc {String(customHour).padStart(2, '0')}:{String(customMinute).padStart(2, '0')}
+                        {customDate.toLocaleString('vi-VN')}
                       </Text>
                     </Text>
                   </View>
@@ -928,5 +920,20 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   timeSummaryText: {
     color: theme.textMuted,
     fontSize: 12
+  },
+  pickerTriggerBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 0.8,
+    borderColor: theme.border,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerTriggerText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   }
 });

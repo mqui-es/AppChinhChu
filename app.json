@@ -1,13 +1,21 @@
 {
   "expo": {
-    "name": "AppChinhChu",
-    "slug": "AppChinhChu",
+    "name": "VSign",
+    "slug": "VSign",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#121212"
+    },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@react-native-community/datetimepicker"
     ],
     "ios": {
+      "icon": "./assets/images/icon.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.ipaviet.esign",
       "infoPlist": {
