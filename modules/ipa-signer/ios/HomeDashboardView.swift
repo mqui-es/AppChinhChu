@@ -37,7 +37,7 @@ extension View {
 
 // Visual Effect Blur representation for SwiftUI on iOS
 struct VisualEffectBlur: UIViewRepresentable {
-    var material: UIBlurEffect.Material
+    var material: UIBlurEffect.Style
     var blendMode: UIVisualEffectView.Filters = .withinWindow
 
     func makeUIView(context: Context) -> UIVisualEffectView {
@@ -70,18 +70,22 @@ extension View {
 struct MainContainerView: View {
     var body: some View {
         TabView {
-            Tab("Trang chủ", systemImage: "house") {
-                HomeDashboardView()
-            }
-            Tab("Ký App", systemImage: "wrench.and.screwdriver") {
-                Text("Trang Ký App")
-            }
-            Tab("Kho App", systemImage: "square.grid.2x2") {
-                Text("Kho Ứng Dụng")
-            }
-            Tab("Chợ MMO", systemImage: "cart") {
-                Text("Chợ Việt MMO")
-            }
+            HomeDashboardView()
+                .tabItem {
+                    Label("Trang chủ", systemImage: "house")
+                }
+            Text("Trang Ký App")
+                .tabItem {
+                    Label("Ký App", systemImage: "wrench.and.screwdriver")
+                }
+            Text("Kho Ứng Dụng")
+                .tabItem {
+                    Label("Kho App", systemImage: "square.grid.2x2")
+                }
+            Text("Chợ Việt MMO")
+                .tabItem {
+                    Label("Chợ MMO", systemImage: "cart")
+                }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
     }
@@ -105,7 +109,7 @@ struct HomeDashboardView: View {
     ]
     
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack {
                 // Background màu xám nhạt cao cấp chuẩn iOS 26
                 Color(red: 244/255, green: 244/255, blue: 246/255)
@@ -269,6 +273,7 @@ struct HomeDashboardView: View {
             }
             .navigationBarHidden(true)
         }
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -308,7 +313,7 @@ struct VipCardView: View {
             ZStack(alignment: .bottomTrailing) {
                 // Icon Mockup
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(app.color.gradient)
+                    .fill(app.color)
                     .frame(width: 84, height: 84)
                     .overlay(
                         Image(systemName: app.iconName)
@@ -351,7 +356,7 @@ struct AppRowView: View {
         HStack(spacing: 14) {
             // Icon
             RoundedRectangle(cornerRadius: 14)
-                .fill(app.color.gradient)
+                .fill(app.color)
                 .frame(width: 54, height: 54)
                 .overlay(
                     Image(systemName: app.iconName)
