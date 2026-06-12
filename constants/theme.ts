@@ -88,32 +88,32 @@ export const THEME_STYLES = {
     borderGold: 'rgba(255, 226, 89, 0.25)',
   },
   light: {
-    background: '#F2F2F7', // Giao diện sáng chuẩn iOS
-    bgGradient: ['#F2F2F7', '#FFFFFF', '#F2F2F7'] as const,
-    surface: 'rgba(255, 255, 255, 0.85)',
+    background: '#F4F4F6', // Nền xám sáng chuẩn iOS mới
+    bgGradient: ['#F4F4F6', '#FAFAFB', '#F4F4F6'] as const,
+    surface: 'rgba(255, 255, 255, 0.9)',
     surfaceSolid: '#FFFFFF',
-    surfaceCard: 'rgba(255, 255, 255, 0.95)',
+    surfaceCard: '#FFFFFF', // Thẻ màu trắng tinh tế
     surfaceAccent: 'rgba(0, 0, 0, 0.02)',
-    primary: '#007AFF', // Xanh dương classic
-    primaryLight: '#4396FF',
-    primaryNeon: '#007AFF',
-    primaryGlow: 'rgba(0, 122, 255, 0.15)',
-    primaryGradient: ['#007AFF', '#0A84FF'] as const,
-    gold: '#B39200',
-    goldSecondary: '#9A7B00',
-    goldGradient: ['#B39200', '#9A7B00'] as const,
-    goldGlow: 'rgba(179, 146, 0, 0.15)',
+    primary: '#0E0E10', // Màu chủ đạo đen tối giản sang trọng
+    primaryLight: '#27272A',
+    primaryNeon: '#000000',
+    primaryGlow: 'rgba(14, 14, 16, 0.05)',
+    primaryGradient: ['#0E0E10', '#27272A'] as const,
+    gold: '#D4AF37', // Vàng gold sang trọng
+    goldSecondary: '#AA7C11',
+    goldGradient: ['#FFE259', '#FFA751'] as const,
+    goldGlow: 'rgba(212, 175, 55, 0.15)',
     success: '#34C759',
     successGradient: ['#34C759', '#30D158'] as const,
     danger: '#FF3B30',
     warning: '#FFCC00',
-    text: '#000000',
+    text: '#000000', // Chữ đen đậm
     textSecondary: '#3C3C43',
     textMuted: '#8E8E93',
     textDark: '#FFFFFF',
-    border: 'rgba(0, 0, 0, 0.08)',
-    borderActive: 'rgba(0, 122, 255, 0.4)',
-    borderGold: 'rgba(179, 146, 0, 0.2)',
+    border: 'rgba(0, 0, 0, 0.05)', // Viền xám siêu mỏng
+    borderActive: 'rgba(0, 0, 0, 0.15)',
+    borderGold: 'rgba(212, 175, 55, 0.25)',
   },
   aurora: {
     background: '#050D12', // Teal-midnight deep
@@ -590,40 +590,91 @@ export const Colors = {
 };
 
 export const SIZES = {
-  padding: 20,
-  radiusSquircle: 24, // Bo tròn squircle Apple sâu
-  radiusCard: 20,
-  radiusButton: 16,
+  padding: 16,
+  radiusSquircle: 28, // Bo tròn squircle chuẩn Apple hiện đại hơn
+  radiusCard: 20,     // Bo tròn card trung bình mượt mà hơn
+  radiusButton: 16,   // Bo tròn nút
   radiusPill: 99,
 };
 
 export const SHADOWS = {
   glowBlue: {
     shadowColor: '#0A84FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   glowGold: {
     shadowColor: '#FFE259',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  glowDark: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  glowCard: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 6,
+  },
+  glowDark: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  glowCard: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   }
+};
+
+export const SPRING = {
+  snappy: { stiffness: 220, damping: 20, mass: 0.8 },
+  gentle: { stiffness: 150, damping: 22, mass: 0.8 },
+  wobbly: { stiffness: 120, damping: 12, mass: 0.8 },
+  stiff: { stiffness: 280, damping: 25, mass: 1 },
+  bouncy: { stiffness: 200, damping: 15, mass: 0.9 }
+};
+
+export const TYPOGRAPHY = {
+  largeTitle: {
+    fontSize: 34,
+    fontWeight: '800' as const,
+    letterSpacing: -1,
+  },
+  title1: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    letterSpacing: -0.5,
+  },
+  title2: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    letterSpacing: -0.5,
+  },
+  headline: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    letterSpacing: -0.4,
+  },
+  subhead: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    letterSpacing: -0.2,
+  },
+  body: {
+    fontSize: 15,
+    fontWeight: '400' as const,
+    letterSpacing: -0.2,
+  },
+  footnote: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    letterSpacing: -0.1,
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '400' as const,
+    letterSpacing: 0,
+  },
 };

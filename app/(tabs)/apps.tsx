@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, ActivityIndicator, ScrollView, Animated, InteractionManager, Alert } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, ActivityIndicator, ScrollView, Animated, InteractionManager, Alert, DeviceEventEmitter } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { fetchRegularApps, AppItem } from '../../constants/data';
-import { ListDownloadBtn } from './search';
-import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { ListDownloadBtn } from '../search';
+import { COLORS, SIZES, SHADOWS, SPRING, useThemeUpdate, TXT } from '../../constants/theme';
 
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
@@ -16,6 +17,21 @@ const getVipMillis = (vipExpire: any) => {
   if (vipExpire.seconds) return vipExpire.seconds * 1000;
   return Number(vipExpire) || 0;
 };
+
+const ShimmerRow = ({ isLight, opacity }: { isLight: boolean; opacity: Animated.Value }) => {
+  const styles = getStyles(COLORS);
+  return (
+    <View style={styles.shimmerRow}>
+      <Animated.View style={[styles.shimmerIcon, { backgroundColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)', opacity }]} />
+      <View style={styles.shimmerTextColumn}>
+        <Animated.View style={[styles.shimmerTextLineLong, { backgroundColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)', opacity }]} />
+        <Animated.View style={[styles.shimmerTextLineShort, { backgroundColor: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)', opacity }]} />
+      </View>
+      <Animated.View style={[styles.shimmerBtn, { backgroundColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)', opacity }]} />
+    </View>
+  );
+};
+
 
 const RegularAppRow = memo(({ item }: { item: AppItem }) => {
   useThemeUpdate();
@@ -65,7 +81,6 @@ const RegularAppRow = memo(({ item }: { item: AppItem }) => {
           <View pointerEvents="none"><ListDownloadBtn app={item} /></View>
         </TouchableOpacity>
       </TouchableOpacity>
-      <View style={styles.divider} />
     </View>
   );
 });
@@ -78,12 +93,42 @@ export default function AppsScreen() {
   const [uiCat, setUiCat] = useState('Tất cả');
   const [listCat, setListCat] = useState('Tất cả');
   const styles = getStyles(COLORS);
+  const shimmerOpacity = useRef(new Animated.Value(0.35)).current;
+
+  const lastScrollY = useRef(0);
+  const isTabBarHidden = useRef(false);
+
+  const handleScroll = (event: any) => {
+    const value = event.nativeEvent.contentOffset.y;
+    if (value < 0) return;
+    const diff = value - lastScrollY.current;
+    
+    if (diff > 15 && value > 100) {
+      if (!isTabBarHidden.current) {
+        isTabBarHidden.current = true;
+        DeviceEventEmitter.emit('hideTabBar');
+      }
+    } else if (diff < -15 || value < 20) {
+      if (isTabBarHidden.current) {
+        isTabBarHidden.current = false;
+        DeviceEventEmitter.emit('showTabBar');
+      }
+    }
+    lastScrollY.current = value;
+  };
 
   const measures = useRef<Record<string, { x: number, width: number }>>({}).current;
   const slideX = useRef(new Animated.Value(0)).current;
   const slideW = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerOpacity, { toValue: 0.7, duration: 900, useNativeDriver: true }),
+        Animated.timing(shimmerOpacity, { toValue: 0.35, duration: 900, useNativeDriver: true })
+      ])
+    ).start();
+
     fetchRegularApps().then((data) => {
       setApps(data);
       const uniqueCats = Array.from(new Set(data.map(app => app.category))).filter(c => c && c !== 'Khác');
@@ -94,11 +139,12 @@ export default function AppsScreen() {
 
   const handleSelectCategory = (cat: string) => {
     if (cat === uiCat) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setUiCat(cat);
     if (measures[cat]) {
       Animated.parallel([
-        Animated.spring(slideX, { toValue: measures[cat].x, useNativeDriver: false, friction: 8, tension: 60 }),
-        Animated.spring(slideW, { toValue: measures[cat].width, useNativeDriver: false, friction: 8, tension: 60 })
+        Animated.spring(slideX, { toValue: measures[cat].x, useNativeDriver: false, ...SPRING.gentle }),
+        Animated.spring(slideW, { toValue: measures[cat].width, useNativeDriver: false, ...SPRING.gentle })
       ]).start();
     }
     InteractionManager.runAfterInteractions(() => { setListCat(cat); });
@@ -108,7 +154,7 @@ export default function AppsScreen() {
     ? apps 
     : apps.filter(a => a.category && a.category.trim().toLowerCase() === listCat.trim().toLowerCase());
 
-  const isLightMode = COLORS.background === '#F2F2F7';
+  const isLightMode = COLORS.background === '#F4F4F6';
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
@@ -116,20 +162,20 @@ export default function AppsScreen() {
       <View style={styles.header}><Text style={styles.largeTitle}>{TXT.appStoreTitle}</Text></View>
 
       {loading ? (
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        <View style={{ marginHorizontal: 16, backgroundColor: COLORS.surfaceCard, borderRadius: SIZES.radiusSquircle, borderWidth: 0.8, borderColor: COLORS.border, marginTop: 15, paddingHorizontal: 4 }}>
+          {[1, 2, 3, 4, 5, 6].map((x, i) => (
+            <View key={x}>
+              <ShimmerRow isLight={isLightMode} opacity={shimmerOpacity} />
+              {i < 5 && <View style={{ height: 0.5, backgroundColor: COLORS.border, marginLeft: 74 }} />}
+            </View>
+          ))}
+        </View>
       ) : (
         <>
           <View style={styles.categoryContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catScroll}>
               <View style={{ flexDirection: 'row', position: 'relative' }}>
-                <Animated.View style={[styles.slidingPill, { transform: [{ translateX: slideX }], width: slideW }]}>
-                  <LinearGradient
-                    colors={COLORS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                </Animated.View>
+                <Animated.View style={[styles.slidingPill, { transform: [{ translateX: slideX }], width: slideW }]} />
                 {categories.map((cat) => (
                   <TouchableOpacity
                     key={cat} style={styles.catBtn}
@@ -149,7 +195,7 @@ export default function AppsScreen() {
             </ScrollView>
           </View>
 
-          <View style={{ flex: 1, opacity: uiCat !== listCat ? 0.3 : 1 }}>
+          <View style={{ flex: 1, opacity: uiCat !== listCat ? 0.35 : 1 }}>
             <FlatList
               data={filteredApps}
               keyExtractor={(item) => item.id}
@@ -160,6 +206,8 @@ export default function AppsScreen() {
               initialNumToRender={8}
               maxToRenderPerBatch={5}
               windowSize={3}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
             />
           </View>
         </>
@@ -176,21 +224,36 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   
   categoryContainer: { borderBottomWidth: 0.8, borderBottomColor: theme.border, paddingBottom: 12, marginBottom: 5, marginTop: 15 },
   catScroll: { paddingHorizontal: 20 },
-  slidingPill: { position: 'absolute', top: 0, bottom: 0, borderRadius: 20, overflow: 'hidden' },
+  slidingPill: { position: 'absolute', top: 6, bottom: 6, borderRadius: 18, backgroundColor: theme.border },
   catBtn: { paddingHorizontal: 20, paddingVertical: 10, zIndex: 2, justifyContent: 'center' },
   catText: { color: theme.textMuted, fontSize: 16, fontWeight: '600' },
-  catTextActive: { color: theme.textDark, fontWeight: '700' },
+  catTextActive: { color: theme.text, fontWeight: '700' },
   
-  loadingContainer: { alignItems: 'center', marginTop: 100 },
   rowWrapper: {
     marginHorizontal: 16,
+    marginVertical: 6,
     borderRadius: SIZES.radiusCard,
+    backgroundColor: theme.surfaceSolid,
+    borderWidth: 0.8,
+    borderColor: theme.border,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  appRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12 },
-  appIconSmall: { width: 60, height: 60, borderRadius: 13, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
+  appRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12 },
+  appIconSmall: { width: 56, height: 56, borderRadius: 14, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
   appInfo: { flex: 1, marginLeft: 14, justifyContent: 'center' },
-  appName: { color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  appSub: { color: theme.textMuted, fontSize: 12 },
-  divider: { height: 0.5, backgroundColor: theme.border, marginLeft: 74 }
+  appName: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  appSub: { color: theme.textMuted, fontSize: 11 },
+
+  // Shimmer Skeletons
+  shimmerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12 },
+  shimmerIcon: { width: 60, height: 60, borderRadius: SIZES.radiusButton },
+  shimmerTextColumn: { flex: 1, marginLeft: 14, gap: 8 },
+  shimmerTextLineLong: { height: 14, borderRadius: 4, width: '60%' },
+  shimmerTextLineShort: { height: 10, borderRadius: 4, width: '35%' },
+  shimmerBtn: { width: 68, height: 28, borderRadius: SIZES.radiusButton },
 });

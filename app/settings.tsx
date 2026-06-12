@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Dimensions, Image, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/ui/GlassView';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, notifyThemeChange, loadTheme, loadLanguage, THEME_STYLES, TRANSLATIONS, TXT } from '../constants/theme';
+import { SPRINGS, entranceAnim } from '../constants/animations';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +34,73 @@ interface CertItem {
   uuid?: string;
   expirationDate?: string;
   isExpired?: boolean;
+}
+
+function AnimatedSwitch({ value, onValueChange, styles }: { value: boolean; onValueChange: () => void; styles: any }) {
+  const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(anim, {
+      toValue: value ? 1 : 0,
+      stiffness: 260,
+      damping: 20,
+      mass: 0.8,
+      useNativeDriver: false,
+    }).start();
+  }, [value]);
+
+  const translateX = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 20],
+  });
+
+  const scaleX = anim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.25, 1],
+  });
+
+  const backgroundColor = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#3A3A3C', COLORS.success],
+  });
+
+  return (
+    <TouchableOpacity activeOpacity={1} onPress={onValueChange}>
+      <Animated.View style={[styles.switchWrapper, { backgroundColor }]}>
+        <Animated.View style={[styles.switchDot, { transform: [{ translateX }, { scaleX }] }]} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+function StorageProgressBar({ uPct, sPct, tPct, oPct, isLight }: { uPct: number; sPct: number; tPct: number; oPct: number; isLight: boolean }) {
+  const uAnim = useRef(new Animated.Value(0)).current;
+  const sAnim = useRef(new Animated.Value(0)).current;
+  const tAnim = useRef(new Animated.Value(0)).current;
+  const oAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(uAnim, { toValue: uPct, stiffness: 180, damping: 22, mass: 0.8, useNativeDriver: false }),
+      Animated.spring(sAnim, { toValue: sPct, stiffness: 180, damping: 22, mass: 0.8, useNativeDriver: false }),
+      Animated.spring(tAnim, { toValue: tPct, stiffness: 180, damping: 22, mass: 0.8, useNativeDriver: false }),
+      Animated.spring(oAnim, { toValue: oPct, stiffness: 180, damping: 22, mass: 0.8, useNativeDriver: false }),
+    ]).start();
+  }, [uPct, sPct, tPct, oPct]);
+
+  const uWidth = uAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+  const sWidth = sAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+  const tWidth = tAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+  const oWidth = oAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+
+  return (
+    <View style={{ height: 8, borderRadius: 4, backgroundColor: isLight ? '#E5E5EA' : 'rgba(255,255,255,0.06)', flexDirection: 'row', overflow: 'hidden', marginBottom: 12 }}>
+      {uPct > 0 && <Animated.View style={{ width: uWidth, backgroundColor: '#007AFF' }} />}
+      {sPct > 0 && <Animated.View style={{ width: sWidth, backgroundColor: '#34C759' }} />}
+      {tPct > 0 && <Animated.View style={{ width: tWidth, backgroundColor: '#FF9500' }} />}
+      {oPct > 0 && <Animated.View style={{ width: oWidth, backgroundColor: '#AF52DE' }} />}
+    </View>
+  );
 }
 
 // Helper: Chuyển đổi Base64 thành chuỗi nhị phân (Binary String) để tìm Plist XML
@@ -122,6 +190,8 @@ const parseMobileProvisionData = (base64Data: string) => {
 export default function SettingsScreen() {
   useThemeUpdate();
   const router = useRouter();
+  const isLight = COLORS.background === '#F4F4F6';
+  const styles = getStyles(COLORS, isLight);
   const [currentThemeStyle, setCurrentThemeStyle] = useState('light');
   const [currentLang, setCurrentLang] = useState('vi');
   const [savedCerts, setSavedCerts] = useState<CertItem[]>([]);
@@ -146,10 +216,16 @@ export default function SettingsScreen() {
 
 
 
+  const headerSlide   = useRef(new Animated.Value(20)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const backBtnScale  = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
     fetchSettings();
     loadSavedCerts();
     calculateAllStorageSizes();
+    // Animate header entrance
+    entranceAnim(headerSlide, headerOpacity, 0).start();
   }, []);
 
   const fetchSettings = async () => {
@@ -583,7 +659,7 @@ export default function SettingsScreen() {
     return names[style] || 'Classic Light';
   };
 
-  const isLight = currentThemeStyle === 'light';
+
 
   return (
     <ScrollView 
@@ -594,14 +670,21 @@ export default function SettingsScreen() {
       <StatusBar style={isLight ? 'dark' : 'light'} />
       
       {/* HEADER WITH BACK BUTTON */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}>
-          <ChevronLeft size={24} color={COLORS.primary} />
-          <Text style={[styles.backText, { color: COLORS.primary }]}>{TXT.profile}</Text>
+      <Animated.View style={[styles.header, { transform: [{ translateY: headerSlide }], opacity: headerOpacity }]}>
+        <TouchableOpacity 
+          style={styles.backBtn} 
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+          onPressIn={() => Animated.spring(backBtnScale, { toValue: 0.88, ...SPRINGS.tap }).start()}
+          onPressOut={() => Animated.spring(backBtnScale, { toValue: 1, ...SPRINGS.bounce }).start()}
+          activeOpacity={1}
+        >
+          <Animated.View style={[styles.backBtnInner, { transform: [{ scale: backBtnScale }] }]}>
+            <ChevronLeft size={20} color={COLORS.text} />
+          </Animated.View>
         </TouchableOpacity>
         <Text style={[styles.largeTitle, { color: COLORS.text, marginTop: 12 }]}>{TXT.settings}</Text>
         <Text style={[styles.subtitle, { color: COLORS.textMuted }]}>{TXT.settingsSubtitle}</Text>
-      </View>
+      </Animated.View>
 
       {/* SECTION 1: CHỨNG CHỈ */}
       <View style={styles.sectionHeader}>
@@ -753,13 +836,7 @@ export default function SettingsScreen() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity 
-            style={[styles.switchWrapper, { backgroundColor: isBackgroundMode ? COLORS.success : '#333' }]}
-            activeOpacity={0.8}
-            onPress={toggleBackgroundMode}
-          >
-            <View style={[styles.switchDot, { transform: [{ translateX: isBackgroundMode ? 20 : 2 }] }]} />
-          </TouchableOpacity>
+          <AnimatedSwitch value={isBackgroundMode} onValueChange={toggleBackgroundMode} styles={styles} />
         </View>
 
       </View>
@@ -789,12 +866,7 @@ export default function SettingsScreen() {
           
           return (
             <View>
-              <View style={{ height: 10, borderRadius: 5, backgroundColor: isLight ? '#E5E5EA' : 'rgba(255,255,255,0.06)', flexDirection: 'row', overflow: 'hidden', marginBottom: 12 }}>
-                {uPct > 0 && <View style={{ width: `${uPct}%`, backgroundColor: '#007AFF' }} />}
-                {sPct > 0 && <View style={{ width: `${sPct}%`, backgroundColor: '#34C759' }} />}
-                {tPct > 0 && <View style={{ width: `${tPct}%`, backgroundColor: '#FF9500' }} />}
-                {oPct > 0 && <View style={{ width: `${oPct}%`, backgroundColor: '#AF52DE' }} />}
-              </View>
+              <StorageProgressBar uPct={uPct} sPct={sPct} tPct={tPct} oPct={oPct} isLight={isLight} />
               
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -904,7 +976,7 @@ export default function SettingsScreen() {
       {/* PREMIUM CERTIFICATE LIBRARY MODAL */}
       <Modal visible={certModalVisible} transparent animationType="slide" statusBarTranslucent>
         <View style={styles.modalBg}>
-          <BlurView intensity={isLight ? 40 : 20} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+          <GlassView intensity={isLight ? 40 : 20} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={[styles.modalBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
             <View style={styles.modalHeaderIndicator} />
             
@@ -976,7 +1048,7 @@ export default function SettingsScreen() {
       {/* P12 PASSWORD INPUT MODAL */}
       <Modal visible={pwdModalVisible} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.modalBgCentered}>
-          <BlurView intensity={25} tint="dark" style={StyleSheet.absoluteFill} />
+          <GlassView intensity={25} tint="dark" style={StyleSheet.absoluteFill} />
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
             <View style={[styles.pwdBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
               <ShieldCheck color={COLORS.primary} size={42} style={{ marginBottom: 12 }} />
@@ -985,7 +1057,7 @@ export default function SettingsScreen() {
                 {TXT.p12PasswordSub} {tempZipData?.zipName}
               </Text>
               <TextInput 
-                style={[styles.pwdInput, { backgroundColor: isLight ? '#F2F2F7' : 'rgba(255,255,255,0.04)', color: COLORS.text, borderColor: COLORS.border }]} 
+                style={[styles.pwdInput, { backgroundColor: isLight ? '#F4F4F6' : 'rgba(255,255,255,0.04)', color: COLORS.text, borderColor: COLORS.border }]} 
                 placeholder={TXT.p12PasswordPlaceholder} 
                 placeholderTextColor={COLORS.textMuted} 
                 secureTextEntry 
@@ -1012,7 +1084,7 @@ export default function SettingsScreen() {
       {/* TECH SPECS MODAL */}
       <Modal visible={infoModalVisible} transparent animationType="fade" statusBarTranslucent>
         <View style={styles.modalBgCentered}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          <GlassView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={[styles.infoBox, { backgroundColor: COLORS.surfaceSolid, borderColor: COLORS.border }]}>
             <Award color={COLORS.primary} size={42} style={{ marginBottom: 12 }} />
             <Text style={[styles.modalTitle, { color: COLORS.text, marginBottom: 4 }]}>VSign</Text>
@@ -1049,19 +1121,40 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: typeof COLORS, isLight: boolean) => StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 150 },
   header: { marginBottom: 30 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
-  backText: { fontSize: 16, fontWeight: '500' },
+  backBtn: { 
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.surfaceSolid,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0.8,
+    borderColor: theme.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+  backBtnInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   largeTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.6 },
   subtitle: { fontSize: 14, marginTop: 4 },
   
   sectionHeader: { marginTop: 24, marginBottom: 8, paddingHorizontal: 4 },
   sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   
-  cardGroup: { borderRadius: 18, borderWidth: 0.8, overflow: 'hidden' },
+  cardGroup: { borderRadius: SIZES.radiusCard, borderWidth: 0.8, overflow: 'hidden' },
   rowItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 16 },
   rowItemNoPress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16 },
   rowLabelContainer: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1072,7 +1165,7 @@ const styles = StyleSheet.create({
   
   themePickerContainer: { marginVertical: 4 },
   themeScroll: { gap: 10, paddingHorizontal: 2 },
-  themePill: { borderRadius: 14, borderWidth: 1.5, padding: 12, width: 140, height: 75, justifyContent: 'center' },
+  themePill: { borderRadius: SIZES.radiusCard, borderWidth: 1.5, padding: 12, width: 140, height: 75, justifyContent: 'center' },
   themePillSelected: {
     ...Platform.select({
       ios: {
@@ -1109,16 +1202,16 @@ const styles = StyleSheet.create({
   segmentText: { fontSize: 13, fontWeight: '600' },
 
   modalBg: { flex: 1, justifyContent: 'flex-end' },
-  modalBox: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, borderWidth: 1, height: '78%', alignItems: 'center' },
+  modalBox: { borderTopLeftRadius: SIZES.radiusSquircle, borderTopRightRadius: SIZES.radiusSquircle, padding: 24, paddingBottom: 40, borderWidth: 1, height: '78%', alignItems: 'center' },
   modalHeaderIndicator: { width: 36, height: 5, borderRadius: 2.5, backgroundColor: 'rgba(128,128,128,0.25)', marginBottom: 20 },
   closeModalBtn: { position: 'absolute', top: 20, right: 20, zIndex: 10, padding: 6, backgroundColor: 'rgba(128,128,128,0.08)', borderRadius: 20 },
   modalTitle: { fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
   modalSub: { fontSize: 13, marginTop: 4, marginBottom: 24, textAlign: 'center', paddingHorizontal: 16 },
-  addCertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,122,255,0.06)', padding: 14, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', marginBottom: 20, width: '100%', gap: 8 },
+  addCertBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,122,255,0.06)', padding: 14, borderRadius: SIZES.radiusButton, borderWidth: 1, borderStyle: 'dashed', marginBottom: 20, width: '100%', gap: 8 },
   addCertText: { fontSize: 14, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, width: '100%' },
   emptyText: { textAlign: 'center', fontSize: 14, opacity: 0.8 },
-  certCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 12, width: '100%' },
+  certCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: SIZES.radiusCard, borderWidth: 1, marginBottom: 12, width: '100%' },
   certCardBody: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   activeStatusDot: { width: 8, height: 8, borderRadius: 4 },
   certNameText: { fontSize: 15, fontWeight: '700', marginBottom: 2, letterSpacing: -0.2 },
@@ -1127,17 +1220,17 @@ const styles = StyleSheet.create({
 
   modalBgCentered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   keyboardView: { width: '100%', alignItems: 'center' },
-  pwdBox: { width: '100%', padding: 24, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
+  pwdBox: { width: '100%', padding: 24, borderRadius: SIZES.radiusSquircle, alignItems: 'center', borderWidth: 1 },
   pwdTitle: { fontSize: 18, fontWeight: '800' },
   pwdSub: { fontSize: 13, marginBottom: 20, textAlign: 'center', paddingHorizontal: 12, lineHeight: 18 },
-  pwdInput: { width: '100%', height: 48, borderRadius: 12, paddingHorizontal: 15, fontSize: 16, borderWidth: 1, textAlign: 'center', fontWeight: '600' },
+  pwdInput: { width: '100%', height: 48, borderRadius: SIZES.radiusButton, paddingHorizontal: 15, fontSize: 16, borderWidth: 1, textAlign: 'center', fontWeight: '600' },
   pwdBtnRow: { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
-  pwdBtnCancel: { flex: 1, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  pwdBtnSave: { flex: 1, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  pwdBtnCancel: { flex: 1, height: 48, borderRadius: SIZES.radiusButton, justifyContent: 'center', alignItems: 'center' },
+  pwdBtnSave: { flex: 1, height: 48, borderRadius: SIZES.radiusButton, justifyContent: 'center', alignItems: 'center' },
 
-  infoBox: { width: '100%', padding: 24, borderRadius: 24, alignItems: 'center', borderWidth: 1 },
+  infoBox: { width: '100%', padding: 24, borderRadius: SIZES.radiusSquircle, alignItems: 'center', borderWidth: 1 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: 'rgba(128,128,128,0.1)' },
-  infoCloseBtn: { width: '100%', height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  infoCloseBtn: { width: '100%', height: 48, borderRadius: SIZES.radiusButton, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   switchWrapper: {
     width: 44,
     height: 24,

@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, ActivityIndicator, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Image, DeviceEventEmitter } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import JSZip from 'jszip';
 import * as Notifications from 'expo-notifications'; 
@@ -20,7 +20,7 @@ const IpaSigner = (() => {
   }
 })();
 
-import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical, Sliders, ChevronDown, ImagePlus } from 'lucide-react-native';
+import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical, Sliders, ChevronDown, ImagePlus, ArrowLeft } from 'lucide-react-native';
 import { COLORS, useThemeUpdate, TXT } from '../../constants/theme';
 import { startStaticServer } from '../../utils/staticServer';
 import * as Linking from 'expo-linking';
@@ -130,6 +130,7 @@ const parseMobileProvisionData = (base64Data: string) => {
 export default function SignScreen() {
   useThemeUpdate();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [localFiles, setLocalFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ipa' | 'installed'>('ipa');
@@ -237,6 +238,28 @@ export default function SignScreen() {
     }
   };
 
+  const lastScrollY = useRef(0);
+  const isTabBarHidden = useRef(false);
+
+  const handleScroll = (event: any) => {
+    const value = event.nativeEvent.contentOffset.y;
+    if (value < 0) return;
+    const diff = value - lastScrollY.current;
+    
+    if (diff > 15 && value > 100) {
+      if (!isTabBarHidden.current) {
+        isTabBarHidden.current = true;
+        DeviceEventEmitter.emit('hideTabBar');
+      }
+    } else if (diff < -15 || value < 20) {
+      if (isTabBarHidden.current) {
+        isTabBarHidden.current = false;
+        DeviceEventEmitter.emit('showTabBar');
+      }
+    }
+    lastScrollY.current = value;
+  };
+
   // 1. ÉP APPLE HIỆN THƯ MỤC: Tạo một file hiển thị rõ ràng
   const forceIOSFolderCreation = async () => {
     try {
@@ -246,13 +269,21 @@ export default function SignScreen() {
   };
 
   useFocusEffect(useCallback(() => { 
+    isTabBarHidden.current = false;
+    DeviceEventEmitter.emit('showTabBar');
     forceIOSFolderCreation();
     loadDownloadedFiles(); 
     loadSavedCerts(); 
     if (IpaSigner) {
       IpaSigner.endBackgroundTask().catch(() => {});
     }
-  }, []));
+    if (params && params.importCert === 'true') {
+      router.setParams({ importCert: '' });
+      setTimeout(() => {
+        importCertFromZip();
+      }, 300);
+    }
+  }, [activeTab, params?.importCert]));
 
   const loadDownloadedFiles = async () => {
     setLoading(true);
@@ -745,17 +776,22 @@ export default function SignScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: COLORS.background }]}>
-      <StatusBar style={COLORS.background === '#F2F2F7' ? 'dark' : 'light'} />
+      <StatusBar style={COLORS.background === '#F4F4F6' ? 'dark' : 'light'} />
       <View style={[styles.header, { borderColor: COLORS.border }]}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-          <Text style={[styles.largeTitle, { color: COLORS.text }]}>{TXT.signAppTitle} <Wrench color={COLORS.primary} size={26} strokeWidth={2.5} /></Text>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+            <TouchableOpacity style={{ padding: 4 }} onPress={() => router.replace('/')}>
+              <ArrowLeft color={COLORS.text} size={24} />
+            </TouchableOpacity>
+            <Text style={[styles.largeTitle, { color: COLORS.text }]}>{TXT.signAppTitle} <Wrench color={COLORS.primary} size={26} strokeWidth={2.5} /></Text>
+          </View>
           <TouchableOpacity style={{padding: 5}} onPress={() => setMenuVisible(true)}>
             <MoreVertical color={COLORS.text} size={28} />
           </TouchableOpacity>
         </View>
 
         {(() => {
-          const isLight = COLORS.background === '#F2F2F7';
+          const isLight = COLORS.background === '#F4F4F6';
           return (
             <View style={[
               styles.tabContainer, 
@@ -812,7 +848,14 @@ export default function SignScreen() {
       {loading ? ( <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}} /> ) : localFiles.length === 0 ? (
           <View style={styles.centerBox}><FolderOpen color={COLORS.textMuted} size={64} strokeWidth={1.5} /><Text style={[styles.emptyText, { color: COLORS.text }]}>{TXT.emptyStore}</Text></View>
       ) : (
-          <FlatList data={localFiles} keyExtractor={(item) => item.uri} renderItem={renderItem} contentContainerStyle={styles.listContent} /> 
+          <FlatList 
+            data={localFiles} 
+            keyExtractor={(item) => item.uri} 
+            renderItem={renderItem} 
+            contentContainerStyle={styles.listContent} 
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          /> 
       )}
 
       {/* MODAL MENU 3 CHẤM */}
@@ -847,7 +890,7 @@ export default function SignScreen() {
                 style={[
                   styles.addCertBtn, 
                   { 
-                    backgroundColor: COLORS.background === '#F2F2F7' ? 'rgba(0,122,255,0.06)' : 'rgba(255,255,255,0.03)', 
+                    backgroundColor: COLORS.background === '#F4F4F6' ? 'rgba(0,122,255,0.06)' : 'rgba(255,255,255,0.03)', 
                     borderColor: COLORS.primary 
                   }
                 ]} 

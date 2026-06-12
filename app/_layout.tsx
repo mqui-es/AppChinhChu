@@ -29,6 +29,7 @@ const { width } = Dimensions.get('window');
 export default function RootLayout() {
   const logoScale = useRef(new Animated.Value(0.9)).current; // Phóng to cực kỳ chậm từ 0.9 lên 1.0
   const logoOpacity = useRef(new Animated.Value(0)).current;
+  const glowScale = useRef(new Animated.Value(0.95)).current;
 
   // Slogan & Credits
   const textOpacity = useRef(new Animated.Value(0)).current;
@@ -147,6 +148,22 @@ export default function RootLayout() {
     // 1. Khởi tạo theme và ngôn ngữ
     initAppThemeAndLang();
 
+    // 2. Vòng lặp nhịp thở ambient glow
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowScale, {
+          toValue: 1.06,
+          duration: 1600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowScale, {
+          toValue: 0.94,
+          duration: 1600,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
     // 3. Chuỗi hoạt họa xuất hiện tối giản sang trọng (Apple Style)
     Animated.sequence([
       Animated.parallel([
@@ -187,7 +204,7 @@ export default function RootLayout() {
       ])
     ]).start();
 
-    // 4. Biến mất sau 4.0 giây bằng cú thu nhỏ tấm nền (Sheet-Shrink Exit) cực sang
+    // 4. Biến mất sau 4.0 giây bằng cú phóng to cổng (Portal Zoom Exit) cực sang
     const timer = setTimeout(() => {
       Animated.parallel([
         Animated.timing(screenOpacity, {
@@ -197,7 +214,7 @@ export default function RootLayout() {
           useNativeDriver: true,
         }),
         Animated.timing(screenScale, {
-          toValue: 0.95, // Thu nhỏ nhẹ tinh tế ra sau
+          toValue: 1.15, // Portal Zoom phóng to cực mượt tiết lộ giao diện bên dưới
           duration: 800,
           easing: Easing.bezier(0.25, 0.1, 0.25, 1),
           useNativeDriver: true,
@@ -247,6 +264,20 @@ export default function RootLayout() {
               animation: 'default' 
             }} 
           />
+          <Stack.Screen 
+            name="search" 
+            options={{ 
+              presentation: 'modal', 
+              animation: 'slide_from_bottom' 
+            }} 
+          />
+          <Stack.Screen 
+            name="account" 
+            options={{ 
+              presentation: 'modal', 
+              animation: 'slide_from_bottom' 
+            }} 
+          />
         </Stack>
       )}
 
@@ -266,6 +297,32 @@ export default function RootLayout() {
 
           <View style={styles.splashContent}>
 
+
+            {/* AMBIENT GLOW CIRCLES */}
+            <Animated.View 
+              pointerEvents="none" 
+              style={[
+                StyleSheet.absoluteFill, 
+                { 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  opacity: logoOpacity 
+                }
+              ]}
+            >
+              <Animated.View style={[
+                styles.ambientGlowCircle1,
+                {
+                  transform: [{ scale: glowScale }]
+                }
+              ]} />
+              <Animated.View style={[
+                styles.ambientGlowCircle2,
+                {
+                  transform: [{ scale: glowScale.interpolate({ inputRange: [0, 2], outputRange: [0, 2.2] }) }]
+                }
+              ]} />
+            </Animated.View>
 
             {/* Logo VSign Wrapper (Basic & Premium) */}
             <Animated.View style={[
@@ -317,6 +374,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flex: 1,
     width: '100%',
+  },
+  ambientGlowCircle1: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(10, 132, 255, 0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.05)',
+  },
+  ambientGlowCircle2: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(10, 132, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.08)',
   },
   logoWrapper: {
     width: 220,

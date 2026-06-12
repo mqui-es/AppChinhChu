@@ -6,7 +6,7 @@ import * as Linking from 'expo-linking';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireNativeModule } from 'expo-modules-core';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../../components/ui/GlassView';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 
@@ -14,6 +14,7 @@ import { CACHED_REGULAR_APPS, CACHED_VIP_APPS, fetchRegularApps, fetchVIPApps, A
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { SPRINGS, entranceAnim } from '../../constants/animations';
 import { translateText } from '../../utils/translate';
 
 import { startStaticServer } from '../../utils/staticServer';
@@ -33,7 +34,7 @@ const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.de
 export default function AppDetailScreen() {
   useThemeUpdate();
   const styles = getStyles(COLORS);
-  const isLight = COLORS.background === '#F2F2F7';
+  const isLight = COLORS.background === '#F4F4F6';
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [app, setApp] = useState<AppItem | null>(null);
@@ -51,6 +52,24 @@ export default function AppDetailScreen() {
   // State phóng to ảnh chụp màn hình dạng vuốt
   const [activeScreenshotIndex, setActiveScreenshotIndex] = useState<number | null>(null);
   const dragY = useRef(new Animated.Value(0)).current;
+
+  // Springs & Animations — iOS native feel
+  const buttonScale     = useRef(new Animated.Value(1)).current;
+  const backBtnScale    = useRef(new Animated.Value(1)).current;
+  const heroSlide       = useRef(new Animated.Value(28)).current;
+  const heroOpacity     = useRef(new Animated.Value(0)).current;
+  const infoSlide       = useRef(new Animated.Value(20)).current;
+  const infoOpacity     = useRef(new Animated.Value(0)).current;
+  const modalTranslateY = useRef(new Animated.Value(height)).current;
+  const modalScale      = useRef(new Animated.Value(0.9)).current;
+  const combinedTranslateY = Animated.add(modalTranslateY, dragY);
+
+  const handleCloseModal = () => {
+    setActiveScreenshotIndex(null);
+  };
+
+  const handlePressIn  = () => Animated.spring(buttonScale, { toValue: 0.94, ...SPRINGS.tap }).start();
+  const handlePressOut = () => Animated.spring(buttonScale, { toValue: 1,    ...SPRINGS.bounce }).start();
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
@@ -86,8 +105,9 @@ export default function AppDetailScreen() {
         } else {
           Animated.spring(dragY, {
             toValue: 0,
-            tension: 80,
-            friction: 10,
+            stiffness: 180,
+            damping: 22,
+            mass: 0.8,
             useNativeDriver: true,
           }).start();
         }
@@ -108,6 +128,42 @@ export default function AppDetailScreen() {
   });
 
   useEffect(() => {
+    if (activeScreenshotIndex !== null) {
+      modalTranslateY.setValue(height);
+      modalScale.setValue(0.9);
+      Animated.parallel([
+        Animated.spring(modalTranslateY, {
+          toValue: 0,
+          stiffness: 200,
+          damping: 20,
+          mass: 0.8,
+          useNativeDriver: true,
+        }),
+        Animated.spring(modalScale, {
+          toValue: 1,
+          stiffness: 200,
+          damping: 20,
+          mass: 0.8,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(modalTranslateY, {
+          toValue: height,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalScale, {
+          toValue: 0.9,
+          duration: 200,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [activeScreenshotIndex]);
+
+  useEffect(() => {
     const loadData = async () => {
       let allApps = [...CACHED_REGULAR_APPS, ...CACHED_VIP_APPS];
       let foundApp = allApps.find((a: AppItem) => a.id === id);
@@ -119,6 +175,11 @@ export default function AppDetailScreen() {
       
       if (foundApp) {
         setApp(foundApp);
+        // Staggered entrance when data is ready
+        Animated.stagger(80, [
+          entranceAnim(heroSlide, heroOpacity, 0),
+          entranceAnim(infoSlide, infoOpacity, 0),
+        ]).start();
         if (!foundApp.screenshots || foundApp.screenshots.length === 0) fetchAppleData(foundApp);
       } else {
         Alert.alert("Lỗi", "Không tìm thấy dữ liệu ứng dụng!");
@@ -405,42 +466,71 @@ export default function AppDetailScreen() {
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <View style={styles.navBar}>
-        <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} onPress={() => router.back()}>
-          <ChevronLeft size={28} color={COLORS.primary} />
-          <Text style={styles.backText}>{TXT.apps}</Text>
+      <Animated.View style={[styles.navBar, { transform: [{ translateY: heroSlide }], opacity: heroOpacity }]}>
+        <TouchableOpacity 
+          style={styles.backBtn} 
+          onPress={() => router.back()}
+          onPressIn={() => Animated.spring(backBtnScale, { toValue: 0.84, ...SPRINGS.tap }).start()}
+          onPressOut={() => Animated.spring(backBtnScale, { toValue: 1, ...SPRINGS.bounce }).start()}
+          activeOpacity={1}
+        >
+          <Animated.View style={{ flexDirection: 'row', alignItems: 'center', transform: [{ scale: backBtnScale }] }}>
+            <ChevronLeft size={28} color={COLORS.primary} />
+            <Text style={styles.backText}>{TXT.apps}</Text>
+          </Animated.View>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
         {/* HEADER BOX */}
-        <View style={styles.headerBox}>
-          <Image source={{ uri: app.iconUrl }} style={styles.bigIcon} />
+        <Animated.View style={[styles.headerBox, { transform: [{ translateY: infoSlide }], opacity: infoOpacity }]}>
+          <View style={styles.iconContainer}>
+            <Image source={{ uri: app.iconUrl }} style={styles.iconBackdrop} blurRadius={15} />
+            <Image source={{ uri: app.iconUrl }} style={styles.bigIcon} />
+          </View>
           <View style={styles.headerInfo}>
             <View>
                 <Text style={styles.title} numberOfLines={2}>{app.name}</Text>
                 <Text style={styles.subtitle}>{app.sub}</Text>
             </View>
             
-            <View style={styles.actionWrapper}>
-                <TouchableOpacity style={[styles.actionBtn, SHADOWS.glowBlue]} activeOpacity={0.8} onPress={handleSecureDownload}>
+            <Animated.View style={[styles.actionWrapper, { transform: [{ scale: buttonScale }] }]}>
+                <TouchableOpacity 
+                  style={[styles.actionBtn, isVipApp ? SHADOWS.glowGold : SHADOWS.glowBlue]} 
+                  activeOpacity={1}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  onPress={handleSecureDownload}
+                >
                   <LinearGradient
                     colors={isVipApp ? COLORS.goldGradient : COLORS.primaryGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.actionBtnGradient}
                   >
-                    <Text style={[styles.actionText, isVipApp && { color: '#0A0A0C' }]}>{getStatusText(downloadState)}</Text>
+                    <View style={styles.actionInside}>
+                      {(downloadState !== 'CÀI ĐẶT' && downloadState !== 'LỖI, THỬ LẠI' && downloadState !== 'Hoàn tất!') && (
+                        <ActivityIndicator 
+                          size="small" 
+                          color={isVipApp ? '#0A0A0C' : '#FFFFFF'} 
+                          style={{ marginRight: 6 }} 
+                        />
+                      )}
+                      <Text style={[styles.actionText, isVipApp && { color: '#0A0A0C' }]}>
+                        {getStatusText(downloadState)}
+                      </Text>
+                    </View>
                   </LinearGradient>
                 </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
-        </View>
+        </Animated.View>
+
 
         {/* STATS VIEW */}
         <View style={[styles.statsWrapper, SHADOWS.glowCard]}>
-          <BlurView intensity={15} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+          <GlassView intensity={15} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={styles.statsInside}>
             <View style={styles.statBox}>
               <Text style={styles.statTop}>
@@ -467,7 +557,14 @@ export default function AppDetailScreen() {
             <ActivityIndicator color={COLORS.primary} style={{marginTop: 20}}/>
           ) : (
             app.screenshots && app.screenshots.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.screenshotScroll}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.screenshotScroll}
+                snapToInterval={255}
+                decelerationRate="fast"
+                snapToAlignment="start"
+              >
                 {app.screenshots.map((img: string, index: number) => (
                   <TouchableOpacity 
                     key={index} 
@@ -527,11 +624,11 @@ export default function AppDetailScreen() {
           <Animated.View style={[
             StyleSheet.absoluteFill, 
             { 
-              backgroundColor: isLight ? '#FFFFFF' : '#000000',
               opacity: backdropOpacity 
             }
           ]}>
-            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setActiveScreenshotIndex(null)} />
+            <GlassView intensity={35} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleCloseModal} />
           </Animated.View>
           
           <View style={[
@@ -539,14 +636,22 @@ export default function AppDetailScreen() {
             { backgroundColor: isLight ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.3)' }
           ]} />
 
+          <TouchableOpacity 
+            style={[styles.closeModalBtn, { backgroundColor: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)' }]} 
+            activeOpacity={0.7}
+            onPress={handleCloseModal}
+          >
+            <X size={20} color={COLORS.text} />
+          </TouchableOpacity>
+
           {activeScreenshotIndex !== null && app.screenshots && app.screenshots.length > 0 && (
             <Animated.View 
               style={[
                 styles.fullscreenWrapper, 
                 { 
                   transform: [
-                    { translateY: dragY }, 
-                    { scale: imageScale }
+                    { translateY: combinedTranslateY }, 
+                    { scale: modalScale }
                   ] 
                 }
               ]}
@@ -593,14 +698,29 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   scrollContent: { paddingBottom: 120 },
   
   headerBox: { flexDirection: 'row', padding: 20 },
+  iconContainer: {
+    position: 'relative',
+    width: 108,
+    height: 108,
+  },
+  iconBackdrop: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: 96,
+    height: 96,
+    borderRadius: 22,
+    opacity: 0.65,
+  },
   bigIcon: { width: 108, height: 108, borderRadius: 24, backgroundColor: theme.surfaceSolid, borderWidth: 0.8, borderColor: theme.border },
   headerInfo: { flex: 1, marginLeft: 20, justifyContent: 'space-between' },
   title: { color: theme.text, fontSize: 22, fontWeight: '800', lineHeight: 28, letterSpacing: -0.5 },
   subtitle: { color: theme.textMuted, fontSize: 14, marginTop: 2 },
   
   actionWrapper: { marginTop: 12, alignSelf: 'flex-start' },
-  actionBtn: { width: 110, height: 34, borderRadius: 17, overflow: 'hidden' },
-  actionBtnGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  actionBtn: { minWidth: 115, height: 34, borderRadius: 17, overflow: 'hidden' },
+  actionBtnGradient: { paddingHorizontal: 12, height: '100%', justifyContent: 'center', alignItems: 'center' },
+  actionInside: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' },
   actionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   
   statsWrapper: {
@@ -657,6 +777,17 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
     position: 'absolute',
     top: Platform.OS === 'ios' ? 65 : 45,
     zIndex: 100,
+  },
+  closeModalBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 55 : 35,
+    right: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 110,
   },
   fullscreenWrapper: {
     width: width,

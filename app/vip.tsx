@@ -4,9 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Sparkles, ChevronLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { fetchVIPApps, AppItem } from '../constants/data';
-import { ListDownloadBtn } from './(tabs)/search';
+import { ListDownloadBtn } from './search';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../constants/theme';
 
 import { auth, db } from '../firebaseConfig';
@@ -111,8 +110,8 @@ export default function VIPScreen() {
     setUiCat(cat); 
     if (measures[cat]) {
       Animated.parallel([
-        Animated.spring(slideX, { toValue: measures[cat].x, useNativeDriver: false, friction: 8, tension: 60 }),
-        Animated.spring(slideW, { toValue: measures[cat].width, useNativeDriver: false, friction: 8, tension: 60 })
+        Animated.spring(slideX, { toValue: measures[cat].x, useNativeDriver: false, stiffness: 180, damping: 22, mass: 0.8 }),
+        Animated.spring(slideW, { toValue: measures[cat].width, useNativeDriver: false, stiffness: 180, damping: 22, mass: 0.8 })
       ]).start();
     }
     InteractionManager.runAfterInteractions(() => { setListCat(cat); });
@@ -133,7 +132,7 @@ export default function VIPScreen() {
     ? apps 
     : apps.filter(a => a.category && a.category.trim().toLowerCase() === listCat.trim().toLowerCase());
 
-  const isLightMode = COLORS.background === '#F2F2F7';
+  const isLightMode = COLORS.background === '#F4F4F6';
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>

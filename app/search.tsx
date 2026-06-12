@@ -2,16 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, TextInput, ScrollView, Dimensions, Keyboard, Animated, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Search, Trophy, Gamepad2, Award, Rocket } from 'lucide-react-native';
+import { Search, Trophy, Gamepad2, Award, Rocket, X, ArrowLeft } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireNativeModule } from 'expo-modules-core';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/ui/GlassView';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 
-import { startStaticServer } from '../../utils/staticServer';
+import { startStaticServer } from '../utils/staticServer';
 
 const IpaSigner = (() => {
   if (Platform.OS === 'web') return null;
@@ -22,8 +22,8 @@ const IpaSigner = (() => {
   }
 })();
 
-import { CACHED_REGULAR_APPS, CACHED_VIP_APPS, AppItem } from '../../constants/data';
-import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { CACHED_REGULAR_APPS, CACHED_VIP_APPS, AppItem } from '../constants/data';
+import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
 const INSTALLER_WORKER_URL = "https://ipaviet-installer.clonene121212.workers.dev";
@@ -34,6 +34,10 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
   const [status, setStatus] = useState('CÀI ĐẶT');
   const styles = getStyles(COLORS);
   const currentLang = TXT.langName === 'English' ? 'en' : 'vi';
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => Animated.spring(scaleAnim, { toValue: 0.93, stiffness: 280, damping: 20, useNativeDriver: true }).start();
+  const handlePressOut = () => Animated.spring(scaleAnim, { toValue: 1, stiffness: 280, damping: 20, useNativeDriver: true }).start();
 
   const handleOneClickInstall = async () => {
     if (status !== 'CÀI ĐẶT' && status !== 'LỖI, THỬ LẠI') return;
@@ -193,9 +197,17 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.getButton} activeOpacity={0.8} onPress={handleOneClickInstall}>
-      <Text style={styles.getButtonText}>{getStatusText(status)}</Text>
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity 
+        style={styles.getButton} 
+        activeOpacity={1} 
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={handleOneClickInstall}
+      >
+        <Text style={styles.getButtonText}>{getStatusText(status)}</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
@@ -206,6 +218,36 @@ const DISCOVER_CARDS = [
   { id: '4', title: 'Hiệu Suất', colors: ['#BF5AF2', '#6200EE'], icon: Rocket, key: 'performance' }
 ];
 
+const DiscoverCardItem = ({ card, onPress }: { card: typeof DISCOVER_CARDS[0]; onPress: () => void }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const CardIcon = card.icon;
+  const styles = getStyles(COLORS);
+
+  const handlePressIn = () => Animated.spring(scaleAnim, { toValue: 0.95, stiffness: 260, damping: 18, useNativeDriver: true }).start();
+  const handlePressOut = () => Animated.spring(scaleAnim, { toValue: 1, stiffness: 260, damping: 18, useNativeDriver: true }).start();
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity 
+        style={[styles.discoverCard, SHADOWS.glowCard]} 
+        activeOpacity={1}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onPress}
+      >
+        <LinearGradient
+          colors={card.colors as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <CardIcon size={42} color="rgba(255,255,255,0.18)" style={styles.cardIconBg} />
+        <Text style={styles.cardTitle}>{TXT[card.key as keyof typeof TXT] || card.title}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
 export default function SearchScreen() {
   useThemeUpdate();
   const router = useRouter();
@@ -213,13 +255,35 @@ export default function SearchScreen() {
   const [results, setResults] = useState<AppItem[]>([]);
   const [suggestions, setSuggestions] = useState<AppItem[]>([]);
   const keyboardOffset = useRef(new Animated.Value(110)).current;
+  const [isFocused, setIsFocused] = useState(false);
+  const focusAnim = useRef(new Animated.Value(0)).current;
   const styles = getStyles(COLORS);
+
+  useEffect(() => {
+    Animated.spring(focusAnim, {
+      toValue: isFocused ? 1 : 0,
+      stiffness: 200,
+      damping: 20,
+      mass: 0.8,
+      useNativeDriver: false,
+    }).start();
+  }, [isFocused]);
+
+  const searchScale = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.015],
+  });
+
+  const searchBorderColor = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [COLORS.border, COLORS.primary],
+  });
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const kbShow = Keyboard.addListener(showEvent, (e) => { Animated.spring(keyboardOffset, { toValue: e.endCoordinates.height + 15, useNativeDriver: false }).start(); });
-    const kbHide = Keyboard.addListener(hideEvent, () => { Animated.spring(keyboardOffset, { toValue: 110, useNativeDriver: false }).start(); });
+    const kbShow = Keyboard.addListener(showEvent, (e) => { Animated.spring(keyboardOffset, { toValue: e.endCoordinates.height + 15, stiffness: 200, damping: 22, mass: 0.8, useNativeDriver: false }).start(); });
+    const kbHide = Keyboard.addListener(hideEvent, () => { Animated.spring(keyboardOffset, { toValue: 110, stiffness: 200, damping: 22, mass: 0.8, useNativeDriver: false }).start(); });
     return () => { kbShow.remove(); kbHide.remove(); }
   }, []);
 
@@ -255,23 +319,46 @@ export default function SearchScreen() {
     </View>
   );
 
-  const isLightMode = COLORS.background === '#F2F2F7';
+  const isLightMode = COLORS.background === '#F4F4F6';
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
       <StatusBar style={isLightMode ? 'dark' : 'light'} />
       {query.length > 0 ? (
         <View style={{flex: 1}}>
-          <View style={styles.headerSmall}><Text style={styles.smallTitle}>{TXT.searchResult}</Text></View>
+          <View style={[styles.headerSmall, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+            <TouchableOpacity style={{ padding: 4 }} onPress={() => router.back()}>
+              <ArrowLeft color={COLORS.text} size={22} />
+            </TouchableOpacity>
+            <Text style={styles.smallTitle}>{TXT.searchResult}</Text>
+          </View>
           <FlatList data={results} keyExtractor={(item) => item.id} renderItem={renderResultItem} contentContainerStyle={styles.scrollContent} ListEmptyComponent={<Text style={styles.emptyText}>{TXT.noResult}</Text>} keyboardShouldPersistTaps="handled" onScroll={() => Keyboard.dismiss()} />
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}><Text style={styles.largeTitle}>{TXT.search}</Text></View>
+          <View style={styles.header}>
+            <Text style={styles.largeTitle}>{TXT.search}</Text>
+            <TouchableOpacity 
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor: COLORS.background === '#F4F4F6' ? '#FFFFFF' : 'rgba(255,255,255,0.06)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 0.8,
+                borderColor: COLORS.border,
+              }} 
+              activeOpacity={0.7} 
+              onPress={() => router.back()}
+            >
+              <X color={COLORS.text} size={20} />
+            </TouchableOpacity>
+          </View>
           
           <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{TXT.suggestedTitle}</Text></View>
           <View style={[styles.cardListWrapper, SHADOWS.glowCard]}>
-            <BlurView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+            <GlassView intensity={20} tint={isLightMode ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
             <View style={styles.cardListContent}>
               {suggestions.map((item, index) => (
                 <View key={item.id}>
@@ -291,33 +378,37 @@ export default function SearchScreen() {
 
           <View style={[styles.sectionHeader, {marginTop: 35}]}><Text style={styles.sectionTitle}>{TXT.discoverTitle}</Text></View>
           <View style={styles.gridContainer}>
-              {DISCOVER_CARDS.map(card => {
-                const CardIcon = card.icon;
-                return (
-                  <TouchableOpacity key={card.id} style={[styles.discoverCard, SHADOWS.glowCard]} activeOpacity={0.8}>
-                    <LinearGradient
-                      colors={card.colors as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    <CardIcon size={42} color="rgba(255,255,255,0.18)" style={styles.cardIconBg} />
-                    <Text style={styles.cardTitle}>{TXT[card.key as keyof typeof TXT] || card.title}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {DISCOVER_CARDS.map(card => (
+                <DiscoverCardItem 
+                  key={card.id} 
+                  card={card} 
+                  onPress={() => {
+                    setQuery(TXT[card.key as keyof typeof TXT] || card.title);
+                  }} 
+                />
+              ))}
           </View>
         </ScrollView>
       )}
 
       {/* SEARCH BAR CHỒNG LÊN */}
-      <Animated.View style={[styles.floatingSearchContainer, { bottom: keyboardOffset }]}>
-        <View style={[styles.floatingSearchBarShadow, SHADOWS.glowDark]}>
-          <BlurView intensity={25} tint={isLightMode ? 'light' : 'dark'} style={styles.floatingSearchBar}>
-            <Search size={20} color="#8E8E93" style={{marginLeft: 5, marginRight: 10}} />
-            <TextInput style={[styles.searchInput, { color: COLORS.text }]} placeholder={TXT.searchPlaceholder} placeholderTextColor="#8E8E93" value={query} onChangeText={setQuery} autoCapitalize="none" clearButtonMode="while-editing" />
-          </BlurView>
-        </View>
+      <Animated.View style={[styles.floatingSearchContainer, { bottom: keyboardOffset, transform: [{ scale: searchScale }] }]}>
+        <Animated.View style={[styles.floatingSearchBarShadow, SHADOWS.glowDark, { borderColor: searchBorderColor, borderWidth: 0.8 }]}>
+          <GlassView intensity={25} tint={isLightMode ? 'light' : 'dark'} style={styles.floatingSearchBar}>
+            <Search size={20} color={isFocused ? COLORS.primary : "#8E8E93"} style={{marginLeft: 5, marginRight: 10}} />
+            <TextInput 
+              style={[styles.searchInput, { color: COLORS.text }]} 
+              placeholder={TXT.searchPlaceholder} 
+              placeholderTextColor="#8E8E93" 
+              value={query} 
+              onChangeText={setQuery} 
+              autoCapitalize="none" 
+              clearButtonMode="while-editing"
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+            />
+          </GlassView>
+        </Animated.View>
       </Animated.View>
     </LinearGradient>
   );
@@ -349,22 +440,20 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
     marginHorizontal: 16,
   },
   appRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 },
-  appIconSmall: { width: 58, height: 58, borderRadius: 13, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
+  appIconSmall: { width: 58, height: 58, borderRadius: SIZES.radiusButton, backgroundColor: theme.surfaceSolid, borderWidth: 0.5, borderColor: theme.border },
   appInfo: { flex: 1, marginLeft: 14, justifyContent: 'center' },
   appName: { color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 4 },
   appSub: { color: theme.textMuted, fontSize: 12 },
   
   getButton: { 
-    backgroundColor: theme.surfaceAccent, 
+    backgroundColor: theme.border, 
     paddingHorizontal: 16, 
-    paddingVertical: 7, 
-    borderRadius: SIZES.radiusPill, 
+    paddingVertical: 6, 
+    borderRadius: 99, 
     minWidth: 80, 
     alignItems: 'center',
-    borderWidth: 0.8,
-    borderColor: theme.border,
   },
-  getButtonText: { color: theme.primary, fontSize: 13, fontWeight: '800' },
+  getButtonText: { color: theme.text, fontSize: 12, fontWeight: '800' },
   divider: { height: 0.5, backgroundColor: theme.border, marginLeft: 72 },
   emptyText: { color: theme.textMuted, textAlign: 'center', marginTop: 40, fontSize: 16 },
   
@@ -376,7 +465,7 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   floatingSearchContainer: { position: 'absolute', width: '100%', alignItems: 'center', paddingHorizontal: 16, zIndex: 100 },
   floatingSearchBarShadow: {
     width: '100%',
-    borderRadius: 22,
+    borderRadius: SIZES.radiusSquircle,
     overflow: 'hidden',
   },
   floatingSearchBar: { 
@@ -386,8 +475,6 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
     height: 54, 
     alignItems: 'center', 
     paddingHorizontal: 16, 
-    borderWidth: 0.8, 
-    borderColor: theme.border 
   },
   searchInput: { flex: 1, fontSize: 16, height: '100%' },
 });

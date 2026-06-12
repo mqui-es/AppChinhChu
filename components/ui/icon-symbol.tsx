@@ -26,6 +26,8 @@ const MAPPING = {
   'wrench.fill': 'build',
   'person': 'person',
   'person.fill': 'person',
+  'cart': 'shopping-cart',
+  'cart.fill': 'shopping-cart',
 } as IconMapping;
 
 /**

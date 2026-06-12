@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator, Alert, ScrollView, Platform, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
+import { GlassView } from '../components/ui/GlassView';
 import { LinearGradient } from 'expo-linear-gradient';
 
 // 🔴 SVG TỪ LUCIDE
@@ -11,6 +11,7 @@ import { X, Sparkles, CheckCircle, Send, Rocket, Gem } from 'lucide-react-native
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate } from '../constants/theme';
+import { SPRINGS, entranceAnim } from '../constants/animations';
 
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXnH5KjwQVafxGW_W2KlpDY9KHBx_0TAmaNZBqUaPz9WR8T1PDKwB9un37fNA_YO7pmg/exec";
 const BANK_ID = "ACB"; const ACCOUNT_NO = "22703611"; const ACCOUNT_NAME = "TRAN NGUYEN MINH QUI"; 
@@ -30,10 +31,55 @@ const VIP_FEATURES = [
   "Ký và cài đặt file IPA ngoại tuyến của riêng bạn"
 ];
 
+// ─── PackCard (extracted so hooks work correctly) ───────────────────────────
+function PackCard({
+  pack, idx, isActive, isBestSeller, isLight, onSelect
+}: {
+  pack: typeof PACKAGES[0];
+  idx: number;
+  isActive: boolean;
+  isBestSeller: boolean;
+  isLight: boolean;
+  onSelect: () => void;
+}) {
+  const cardStyles = getStyles(COLORS);
+  const cardScale = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const SvgIcon   = pack.icon;
+
+  useEffect(() => {
+    entranceAnim(slideAnim, fadeAnim, idx * 80).start();
+  }, []);
+
+  const handlePress = () => {
+    Animated.spring(cardScale, { toValue: 0.93, ...SPRINGS.tap }).start(() => {
+      Animated.spring(cardScale, { toValue: 1, ...SPRINGS.bounce }).start();
+    });
+    onSelect();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ translateY: slideAnim }, { scale: cardScale }], opacity: fadeAnim }}>
+      <TouchableOpacity
+        style={[cardStyles.packCard, isActive && cardStyles.packCardActive, isBestSeller && !isActive && cardStyles.packCardHot]}
+        onPress={handlePress}
+        activeOpacity={0.85}
+      >
+        {pack.badge ? <View style={[cardStyles.badge, isActive && { backgroundColor: COLORS.danger }]}><Text style={cardStyles.badgeText}>{pack.badge}</Text></View> : null}
+        <SvgIcon color={isActive ? COLORS.gold : COLORS.textMuted} size={36} strokeWidth={1.5} style={{ marginBottom: 10 }} />
+        <Text style={[cardStyles.packName, isActive && { color: isLight ? COLORS.text : '#FFF' }]}>{pack.name}</Text>
+        <Text style={[cardStyles.packPrice, isActive && { color: COLORS.gold, fontSize: 20 }]}>{pack.price.toLocaleString('vi-VN')}đ</Text>
+        <Text style={cardStyles.packDays}>Sử dụng {pack.days} ngày</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 export default function BuyVipScreen() {
   useThemeUpdate();
   const styles = getStyles(COLORS);
-  const isLight = COLORS.background === '#F2F2F7';
+  const isLight = COLORS.background === '#F4F4F6';
   const router = useRouter();
   const [selectedPack, setSelectedPack] = useState(PACKAGES[1]); 
   const [is14DayEnabled, setIs14DayEnabled] = useState(true);
@@ -41,6 +87,8 @@ export default function BuyVipScreen() {
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
+
+  const payBtnScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -91,41 +139,33 @@ export default function BuyVipScreen() {
       <StatusBar style={isLight ? 'dark' : 'light'} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <X color={isLight ? COLORS.text : '#FFF'} size={28} />
+          <X color={COLORS.text} size={20} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>NÂNG CẤP TÀI KHOẢN</Text>
-        <View style={{ width: 28 }} />
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Chọn gói ưu đãi</Text>
         <View style={styles.packWrapper}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 15, paddingVertical: 15}}>
-            {PACKAGES.filter(p => p.id !== '14D' || is14DayEnabled).map(pack => {
-              const isActive = selectedPack.id === pack.id;
-              const isBestSeller = pack.id === '30D';
-              const SvgIcon = pack.icon; 
-              return (
-                <TouchableOpacity 
-                  key={pack.id} 
-                  style={[styles.packCard, isActive && styles.packCardActive, isBestSeller && !isActive && styles.packCardHot]} 
-                  onPress={() => { setSelectedPack(pack); setOrderId(''); setQrUrl(''); }} 
-                  activeOpacity={0.8}
-                >
-                  {pack.badge ? <View style={[styles.badge, isActive && {backgroundColor: COLORS.danger}]}><Text style={styles.badgeText}>{pack.badge}</Text></View> : null}
-                  <SvgIcon color={isActive ? COLORS.gold : COLORS.textMuted} size={36} strokeWidth={1.5} style={{marginBottom: 10}} />
-                  <Text style={[styles.packName, isActive && { color: isLight ? COLORS.text : '#FFF' }]}>{pack.name}</Text>
-                  <Text style={[styles.packPrice, isActive && { color: COLORS.gold, fontSize: 20 }]}>{pack.price.toLocaleString('vi-VN')}đ</Text>
-                  <Text style={styles.packDays}>Sử dụng {pack.days} ngày</Text>
-                </TouchableOpacity>
-              )
-            })}
+            {PACKAGES.filter(p => p.id !== '14D' || is14DayEnabled).map((pack, idx) => (
+              <PackCard
+                key={pack.id}
+                pack={pack}
+                idx={idx}
+                isActive={selectedPack.id === pack.id}
+                isBestSeller={pack.id === '30D'}
+                isLight={isLight}
+                onSelect={() => { setSelectedPack(pack); setOrderId(''); setQrUrl(''); }}
+              />
+            ))}
           </ScrollView>
         </View>
 
         {/* PERKS LIST */}
         <View style={[styles.perkCard, SHADOWS.glowCard]}>
-          <BlurView intensity={10} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+          <GlassView intensity={10} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={styles.perkInside}>
             <Text style={styles.perkTitle}>Quyền lợi khi là thành viên VIP</Text>
             {VIP_FEATURES.map((feat, idx) => (
@@ -138,14 +178,23 @@ export default function BuyVipScreen() {
         </View>
 
         {!orderId ? (
-          <TouchableOpacity style={[styles.createOrderBtn, SHADOWS.glowGold]} activeOpacity={0.8} onPress={handleCreateOrder} disabled={isCreatingOrder}>
-            <LinearGradient colors={COLORS.goldGradient} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.createOrderBtnGradient}>
-              {isCreatingOrder ? <ActivityIndicator color="#000" /> : <Text style={styles.createOrderText}>THANH TOÁN {selectedPack.price.toLocaleString('vi-VN')}đ</Text>}
-            </LinearGradient>
+          <TouchableOpacity 
+            style={[styles.createOrderBtn, SHADOWS.glowGold]} 
+            onPress={handleCreateOrder}
+            onPressIn={() => Animated.spring(payBtnScale, { toValue: 0.94, ...SPRINGS.tap }).start()}
+            onPressOut={() => Animated.spring(payBtnScale, { toValue: 1, ...SPRINGS.bounce }).start()}
+            disabled={isCreatingOrder}
+            activeOpacity={1}
+          >
+            <Animated.View style={{ transform: [{ scale: payBtnScale }] }}>
+              <LinearGradient colors={COLORS.goldGradient} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.createOrderBtnGradient}>
+                {isCreatingOrder ? <ActivityIndicator color="#000" /> : <Text style={styles.createOrderText}>THANH TOÁN {selectedPack.price.toLocaleString('vi-VN')}đ</Text>}
+              </LinearGradient>
+            </Animated.View>
           </TouchableOpacity>
         ) : (
           <View style={[styles.qrBox, SHADOWS.glowDark]}>
-            <BlurView intensity={15} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
+            <GlassView intensity={15} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
             <View style={styles.qrBoxInside}>
               <Text style={styles.qrTitle}>Mã QR Thanh Toán Tự Động</Text>
               <View style={styles.qrBorder}>{qrUrl ? <Image source={{ uri: qrUrl }} style={styles.qrImage} /> : <ActivityIndicator size="large" color={COLORS.gold} style={{height: 200}} />}</View>
@@ -173,61 +222,84 @@ export default function BuyVipScreen() {
 
 const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 0.8, borderColor: theme.border },
-  headerTitle: { color: theme.gold, fontSize: 16, fontWeight: '800', letterSpacing: 1 },
-  backBtn: { padding: 5, marginLeft: -5 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingTop: Platform.OS === 'ios' ? 50 : 30, 
+    paddingHorizontal: 20, 
+    paddingBottom: 15, 
+    borderBottomWidth: 0.8, 
+    borderColor: theme.border,
+    height: 100,
+  },
+  headerTitle: { color: theme.gold, fontSize: 15, fontWeight: '800', letterSpacing: 1 },
+  backBtn: { 
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.surfaceSolid,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0.8,
+    borderColor: theme.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
   content: { padding: 16, paddingBottom: 120 },
-  sectionTitle: { color: theme.text, fontSize: 18, fontWeight: '800', marginBottom: 5 },
+  sectionTitle: { color: theme.text, fontSize: 16, fontWeight: '800', marginBottom: 5 },
   packWrapper: { marginBottom: 20 },
   
   packCard: { 
     width: 140, 
-    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.03)', 
+    backgroundColor: theme.surfaceSolid, 
     paddingVertical: 24, 
     paddingHorizontal: 16, 
     borderRadius: 20, 
     alignItems: 'center', 
     borderWidth: 0.8, 
-    borderColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)', 
+    borderColor: theme.border, 
     position: 'relative' 
   },
   packCardHot: { 
-    borderColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)', 
-    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' 
+    borderColor: theme.borderActive, 
+    backgroundColor: theme.background, 
   },
   packCardActive: { 
-    backgroundColor: 'rgba(255, 226, 89, 0.1)', 
+    backgroundColor: 'rgba(212, 175, 55, 0.1)', 
     borderColor: theme.gold, 
-    transform: [{scale: 1.05}], 
   },
   
   badge: { position: 'absolute', top: -10, backgroundColor: '#FF3B30', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8, zIndex: 2, borderWidth: 0.8, borderColor: 'rgba(255,255,255,0.1)' },
   badgeText: { color: '#FFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  packName: { color: theme.textMuted, fontSize: 14, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  packName: { color: theme.textMuted, fontSize: 13, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
   packPrice: { color: theme.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
-  packDays: { color: theme.textMuted, fontSize: 12, fontWeight: '500' },
+  packDays: { color: theme.textMuted, fontSize: 11, fontWeight: '500' },
   
-  perkCard: { backgroundColor: theme.surfaceCard, borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: theme.border, marginBottom: 25 },
+  perkCard: { backgroundColor: theme.surfaceSolid, borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: theme.border, marginBottom: 25 },
   perkInside: { padding: 20 },
-  perkTitle: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 15, textAlign: 'center' },
+  perkTitle: { color: theme.text, fontSize: 14, fontWeight: '700', marginBottom: 15, textAlign: 'center' },
   perkRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  perkText: { color: theme.textSecondary, fontSize: 14, flex: 1, lineHeight: 22 },
+  perkText: { color: theme.textSecondary, fontSize: 13, flex: 1, lineHeight: 20 },
   
-  createOrderBtn: { height: 56, borderRadius: 16, overflow: 'hidden' },
+  createOrderBtn: { height: 50, borderRadius: 25, overflow: 'hidden' },
   createOrderBtnGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-  createOrderText: { color: '#000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  createOrderText: { color: '#000', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
   
-  qrBox: { backgroundColor: theme.surfaceCard, borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: theme.border },
+  qrBox: { backgroundColor: theme.surfaceSolid, borderRadius: SIZES.radiusSquircle, overflow: 'hidden', borderWidth: 0.8, borderColor: theme.border },
   qrBoxInside: { padding: 20, alignItems: 'center' },
-  qrTitle: { color: theme.text, fontSize: 16, fontWeight: '700', marginBottom: 20 },
+  qrTitle: { color: theme.text, fontSize: 15, fontWeight: '700', marginBottom: 20 },
   qrBorder: { padding: 10, backgroundColor: '#FFF', borderRadius: 16, marginBottom: 20 },
   qrImage: { width: 220, height: 220, borderRadius: 8 },
-  infoBox: { width: '100%', backgroundColor: theme.surfaceSolid, padding: 15, borderRadius: 12, borderWidth: 0.8, borderColor: theme.border, marginBottom: 15 },
+  infoBox: { width: '100%', backgroundColor: theme.background, padding: 15, borderRadius: 12, borderWidth: 0.8, borderColor: theme.border, marginBottom: 15 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  infoLabel: { color: theme.textMuted, fontSize: 14 },
-  infoValue: { color: theme.text, fontSize: 14, fontWeight: '700' },
-  warningText: { color: theme.danger, fontSize: 12, textAlign: 'center', marginBottom: 20, fontWeight: '600', lineHeight: 18 },
-  checkBtn: { width: '100%', height: 56, borderRadius: 16, overflow: 'hidden' },
+  infoLabel: { color: theme.textMuted, fontSize: 13 },
+  infoValue: { color: theme.text, fontSize: 13, fontWeight: '700' },
+  warningText: { color: theme.danger, fontSize: 11, textAlign: 'center', marginBottom: 20, fontWeight: '600', lineHeight: 16 },
+  checkBtn: { width: '100%', height: 50, borderRadius: 25, overflow: 'hidden' },
   checkBtnGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-  checkBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 1 }
+  checkBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 }
 });

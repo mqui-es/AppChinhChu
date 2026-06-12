@@ -790,7 +790,7 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   loginBox: { backgroundColor: theme.surfaceSolid, padding: 30, borderRadius: 24, alignItems: 'center', borderWidth: 0.8, borderColor: theme.border },
   logoCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255, 69, 58, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   loginTitle: { color: theme.text, fontSize: 24, fontWeight: '800', marginBottom: 25 },
-  inputGroup: { width: '100%', height: 55, backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.05)' : '#000', borderRadius: 16, marginBottom: 20, paddingHorizontal: 15, borderWidth: 0.8, borderColor: theme.border, justifyContent: 'center' },
+  inputGroup: { width: '100%', height: 55, backgroundColor: theme.background === '#F4F4F6' ? 'rgba(0,0,0,0.05)' : '#000', borderRadius: 16, marginBottom: 20, paddingHorizontal: 15, borderWidth: 0.8, borderColor: theme.border, justifyContent: 'center' },
   input: { color: theme.text, fontSize: 18, textAlign: 'center', fontWeight: 'bold' },
   submitBtn: { backgroundColor: theme.danger, width: '100%', height: 55, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
@@ -810,7 +810,7 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
   settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, paddingBottom: 15, borderBottomWidth: 0.8, borderBottomColor: theme.border },
   settingText: { color: theme.text, fontSize: 16, fontWeight: '600' },
   textArea: { 
-    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', 
+    backgroundColor: theme.background === '#F4F4F6' ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', 
     color: theme.text, 
     padding: 15, 
     borderRadius: 12, 
@@ -821,7 +821,7 @@ const getStyles = (theme: typeof COLORS) => StyleSheet.create({
     fontSize: 15 
   },
   addInput: { 
-    backgroundColor: theme.background === '#F2F2F7' ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', 
+    backgroundColor: theme.background === '#F4F4F6' ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', 
     borderRadius: 12, 
     height: 50, 
     color: theme.text, 
