@@ -14,6 +14,7 @@ import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/the
 import { SPRINGS, entranceAnim, shimmerLoop } from '../../constants/animations';
 import { Sparkles, Flame, BellRing, X, ChevronRight } from 'lucide-react-native';
 import { IconSymbol } from '../../components/ui/icon-symbol';
+import { TabTransition } from '../../components/ui/TabTransition';
 import * as Linking from 'expo-linking';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
@@ -333,8 +334,8 @@ export default function HomeScreen() {
       <StatusBar style={isLight ? 'dark' : 'light'} />
 
       <Modal visible={showHomePopup && !!announcement} transparent animationType="fade">
-        <BlurView intensity={40} tint={isLight ? "light" : "dark"} style={styles.homeModalBg}>
-          <BlurView intensity={95} tint={isLight ? "light" : "dark"} style={[styles.homeModalBox, SHADOWS.glowDark, { borderColor: COLORS.border }]}>
+        <BlurView intensity={25} tint={isLight ? "light" : "dark"} style={styles.homeModalBg}>
+          <View style={[styles.homeModalBox, SHADOWS.glowDark, { borderColor: COLORS.border, backgroundColor: isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(28, 28, 30, 0.95)' }]}>
             <TouchableOpacity 
               style={styles.homeModalCloseBtn} 
               onPress={async () => {
@@ -397,11 +398,12 @@ export default function HomeScreen() {
                 <Text style={[styles.homeModalCloseText, { color: COLORS.primary }]}>{TXT.langName === 'English' ? 'CLOSE' : 'ĐÓNG'}</Text>
               </TouchableOpacity>
             </View>
-          </BlurView>
+          </View>
         </BlurView>
       </Modal>
 
-      <Animated.ScrollView
+      <TabTransition tabPath="/">
+        <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         scrollEventThrottle={16}
@@ -630,7 +632,8 @@ export default function HomeScreen() {
             </View>
           </>
         )}
-      </Animated.ScrollView>
+        </Animated.ScrollView>
+      </TabTransition>
     </LinearGradient>
   );
 }

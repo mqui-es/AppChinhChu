@@ -64,7 +64,10 @@ export const ListDownloadBtn = ({ app }: { app: AppItem }) => {
       const certs = certsStr ? JSON.parse(certsStr) : [];
       if (!certs || certs.length === 0) {
         Alert.alert("Chưa có chứng chỉ", "Sếp cần thêm chứng chỉ P12 vào Thư viện trước khi cài app!");
-        router.push('/sign');
+        router.back();
+        setTimeout(() => {
+          router.push('/sign');
+        }, 120);
         if (bgMode && IpaSigner) {
           try { await IpaSigner.endBackgroundTask(); } catch (e) {}
         }

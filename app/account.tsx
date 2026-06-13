@@ -29,6 +29,12 @@ interface UserData { fullname?: string; email?: string; coins?: number; vipExpir
 export default function AccountScreen() {
   useThemeUpdate();
   const router = useRouter(); 
+  const navigateFromModal = (targetPath: string) => {
+    router.back();
+    setTimeout(() => {
+      router.push(targetPath as any);
+    }, 120);
+  };
   const isLight = COLORS.background === '#F4F4F6';
   const styles = getStyles(COLORS, isLight);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -303,7 +309,7 @@ export default function AccountScreen() {
             <TouchableOpacity 
               style={styles.upgradeBlackBtn} 
               activeOpacity={0.85} 
-              onPress={() => router.push('/buy-vip')}
+              onPress={() => navigateFromModal('/buy-vip')}
             >
               <Text style={styles.upgradeBlackBtnText}>{isVipActive ? 'Gia hạn gói' : 'Nâng cấp ngay'}</Text>
             </TouchableOpacity>
@@ -353,7 +359,7 @@ export default function AccountScreen() {
             })}
             <View style={styles.divider} />
             {renderRow(Database, 'Data controls', undefined, '#8E8E93', true, false, () => {
-              router.push('/settings');
+              navigateFromModal('/settings');
             })}
           </View>
         </View>
@@ -362,7 +368,7 @@ export default function AccountScreen() {
         <Text style={styles.sectionTitle}>HỆ THỐNG & TIỆN ÍCH</Text>
         <View style={[styles.groupCard, SHADOWS.glowCard]}>
           <View style={styles.groupInside}>
-            {renderRow(Palette, TXT.setupThemeRow, TXT.openLabel, '#8E8E93', false, false, () => router.push('/settings'))}
+            {renderRow(Palette, TXT.setupThemeRow, TXT.openLabel, '#8E8E93', false, false, () => navigateFromModal('/settings'))}
             <View style={styles.divider} />
             {renderRow(CloudDownload, TXT.cloudStorage, '5 GB', '#8E8E93', false, false)}
             <View style={styles.divider} />
@@ -402,7 +408,7 @@ export default function AccountScreen() {
             <Text style={styles.sectionTitle}>{TXT.adminArea.toUpperCase()}</Text>
             <View style={[styles.groupCard, SHADOWS.glowCard]}>
               <View style={styles.groupInside}>
-                {renderRow(ShieldCheck, TXT.adminArea, TXT.langName === 'English' ? 'Required PIN' : 'Yêu cầu PIN', '#FF453A', true, false, () => router.push('/admin'))}
+                {renderRow(ShieldCheck, TXT.adminArea, TXT.langName === 'English' ? 'Required PIN' : 'Yêu cầu PIN', '#FF453A', true, false, () => navigateFromModal('/admin'))}
               </View>
             </View>
           </>

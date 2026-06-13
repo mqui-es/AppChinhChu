@@ -81,7 +81,9 @@ export default function BuyVipScreen() {
   const styles = getStyles(COLORS);
   const isLight = COLORS.background === '#F4F4F6';
   const router = useRouter();
+  const [packages, setPackages] = useState(PACKAGES);
   const [selectedPack, setSelectedPack] = useState(PACKAGES[1]); 
+  const [vipFeatures, setVipFeatures] = useState(VIP_FEATURES);
   const [is14DayEnabled, setIs14DayEnabled] = useState(true);
   const [orderId, setOrderId] = useState('');
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
@@ -93,7 +95,40 @@ export default function BuyVipScreen() {
   useEffect(() => {
     const fetchSettings = async () => {
       const snap = await getDoc(doc(db, 'settings', 'config'));
-      if (snap.exists()) setIs14DayEnabled(snap.data().enable14Days !== false);
+      if (snap.exists()) {
+        const data = snap.data();
+        setIs14DayEnabled(data.enable14Days !== false);
+        
+        // Update package prices dynamically if they exist in DB
+        const updatedPacks = PACKAGES.map(p => {
+          if (p.id === '14D' && data.vipPrice14D !== undefined) {
+            return { ...p, price: Number(data.vipPrice14D) };
+          }
+          if (p.id === '30D' && data.vipPrice30D !== undefined) {
+            return { ...p, price: Number(data.vipPrice30D) };
+          }
+          if (p.id === '1Y' && data.vipPrice1Y !== undefined) {
+            return { ...p, price: Number(data.vipPrice1Y) };
+          }
+          return p;
+        });
+        setPackages(updatedPacks);
+        
+        // Update selected pack to match the updated pack in packages state
+        const activePack = updatedPacks.find(p => p.id === '30D');
+        if (activePack) setSelectedPack(activePack);
+
+        // Update features list dynamically
+        if (data.vipFeaturesText) {
+          const lines = data.vipFeaturesText
+            .split('\n')
+            .map((l: string) => l.trim())
+            .filter((l: string) => l.length > 0);
+          if (lines.length > 0) {
+            setVipFeatures(lines);
+          }
+        }
+      }
     };
     fetchSettings();
   }, []);
@@ -149,7 +184,7 @@ export default function BuyVipScreen() {
         <Text style={styles.sectionTitle}>Chọn gói ưu đãi</Text>
         <View style={styles.packWrapper}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 15, paddingVertical: 15}}>
-            {PACKAGES.filter(p => p.id !== '14D' || is14DayEnabled).map((pack, idx) => (
+            {packages.filter(p => p.id !== '14D' || is14DayEnabled).map((pack, idx) => (
               <PackCard
                 key={pack.id}
                 pack={pack}
@@ -168,7 +203,7 @@ export default function BuyVipScreen() {
           <GlassView intensity={10} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
           <View style={styles.perkInside}>
             <Text style={styles.perkTitle}>Quyền lợi khi là thành viên VIP</Text>
-            {VIP_FEATURES.map((feat, idx) => (
+            {vipFeatures.map((feat, idx) => (
               <View key={idx} style={styles.perkRow}>
                  <CheckCircle color={COLORS.gold} size={18} style={{marginRight: 10, marginTop: 2}} />
                  <Text style={styles.perkText}>{feat}</Text>

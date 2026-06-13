@@ -21,6 +21,7 @@ import {
   onSnapshot 
 } from 'firebase/firestore';
 import { COLORS, SIZES, SHADOWS, useThemeUpdate, TXT } from '../../constants/theme';
+import { TabTransition } from '../../components/ui/TabTransition';
 import { SPRINGS, entranceAnim } from '../../constants/animations';
 
 const { width, height } = Dimensions.get('window');
@@ -1016,6 +1017,7 @@ export default function MMOMarketplaceScreen() {
 
   return (
     <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
+      <TabTransition tabPath="/mmo">
       {/* HEADER */}
       <Animated.View style={[styles.header, { transform: [{ translateY: headerSlide }], opacity: headerOpacity }]}>
         <View style={styles.headerTop}>
@@ -1579,6 +1581,7 @@ export default function MMOMarketplaceScreen() {
           </ScrollView>
         )}
       </Animated.View>
+    </TabTransition>
 
       {/* DETAIL MODAL */}
       <Modal visible={selectedProduct !== null} transparent animationType="slide" statusBarTranslucent>

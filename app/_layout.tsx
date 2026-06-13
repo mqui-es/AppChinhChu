@@ -1,14 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, Dimensions, Animated, Image, Easing, Platform, AppState, AppStateStatus, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Stack } from 'expo-router';
+import { StyleSheet, View, Text, Dimensions, Animated, Image, Easing, Platform, AppState, AppStateStatus, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ShieldCheck, Sparkles, BellRing } from 'lucide-react-native';
-import { initAppThemeAndLang } from '../constants/theme';
+import { initAppThemeAndLang, useThemeUpdate, COLORS } from '../constants/theme';
 import * as Notifications from 'expo-notifications';
 import * as Linking from 'expo-linking';
 import { auth, db } from '../firebaseConfig';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import Constants from 'expo-constants';
 
@@ -27,6 +27,7 @@ if (Platform.OS !== 'web') {
 const { width } = Dimensions.get('window');
 
 export default function RootLayout() {
+  useThemeUpdate();
   const logoScale = useRef(new Animated.Value(0.9)).current; // Phóng to cực kỳ chậm từ 0.9 lên 1.0
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const glowScale = useRef(new Animated.Value(0.95)).current;
@@ -43,6 +44,14 @@ export default function RootLayout() {
 
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
+  const [userSkippedUpdate, setUserSkippedUpdate] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(auth.currentUser?.email?.toLowerCase() === 'mquitran@gmail.com');
+  const [forceUpdateConfig, setForceUpdateConfig] = useState<{
+    show: boolean;
+    msg: string;
+    url: string;
+    allowSkip: boolean;
+  } | null>(null);
 
   const checkNotificationPermission = async () => {
     if (Platform.OS === 'web') {
@@ -119,6 +128,7 @@ export default function RootLayout() {
     const appStateSub = AppState.addEventListener('change', handleAppStateChange);
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setIsAdmin(user?.email?.toLowerCase() === 'mquitran@gmail.com');
       try {
         if (Platform.OS === 'web') return;
         const { status } = await Notifications.getPermissionsAsync();
@@ -138,9 +148,30 @@ export default function RootLayout() {
       }
     });
 
+    // Realtime listener for force update settings
+    const unsubscribeConfig = onSnapshot(doc(db, 'settings', 'config'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.forceUpdateShow) {
+          setForceUpdateConfig({
+            show: true,
+            msg: data.forceUpdateMsg || 'Đã có bản cập nhật mới. Vui lòng cập nhật để tiếp tục sử dụng ứng dụng.',
+            url: data.forceUpdateUrl || 'https://ipaviet.site',
+            allowSkip: data.forceUpdateAllowSkip || false,
+          });
+        } else {
+          setForceUpdateConfig(null);
+          setUserSkippedUpdate(false);
+        }
+      }
+    }, (error) => {
+      console.warn("Failed to subscribe to settings/config:", error);
+    });
+
     return () => {
       appStateSub.remove();
       unsubscribeAuth();
+      unsubscribeConfig();
     };
   }, []);
 
@@ -229,10 +260,47 @@ export default function RootLayout() {
     };
   }, []);
 
+  const pathname = usePathname();
+  const showForceUpdate = forceUpdateConfig && forceUpdateConfig.show && !userSkippedUpdate && pathname !== '/admin' && !isAdmin;
+
   return (
     <>
       <StatusBar style="light" />
-      {permissionGranted === false ? (
+      {showForceUpdate ? (
+        <LinearGradient colors={['#0A0A0E', '#161622', '#0A0A0E']} style={styles.blockContainer}>
+          <View style={styles.blockContent}>
+            <View style={[styles.blockIconCircle, { backgroundColor: 'rgba(255, 69, 58, 0.12)', borderColor: 'rgba(255, 69, 58, 0.25)' }]}>
+              <Sparkles color="#FF453A" size={48} strokeWidth={1.5} />
+            </View>
+            <Text style={styles.blockTitle}>YÊU CẦU CẬP NHẬT</Text>
+            <ScrollView style={{ maxHeight: 150, marginVertical: 10 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 5 }}>
+              <Text style={styles.blockMsg}>
+                {forceUpdateConfig.msg}
+              </Text>
+            </ScrollView>
+            
+            <TouchableOpacity 
+              style={styles.blockBtn} 
+              activeOpacity={0.8} 
+              onPress={() => Linking.openURL(forceUpdateConfig.url).catch(err => console.warn("Cannot open update link", err))}
+            >
+              <LinearGradient colors={['#FF3B30', '#FF453A']} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.blockBtnGradient}>
+                <Text style={styles.blockBtnText}>CẬP NHẬT NGAY</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {forceUpdateConfig.allowSkip ? (
+              <TouchableOpacity 
+                style={styles.blockRetryBtn} 
+                activeOpacity={0.7} 
+                onPress={() => setUserSkippedUpdate(true)}
+              >
+                <Text style={[styles.blockRetryText, { color: '#8E8E93' }]}>BỎ QUA CẬP NHẬT</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </LinearGradient>
+      ) : permissionGranted === false ? (
         <LinearGradient colors={['#0A0A0E', '#12121A', '#0A0A0E']} style={styles.blockContainer}>
           <View style={styles.blockContent}>
             <View style={styles.blockIconCircle}>
@@ -255,13 +323,13 @@ export default function RootLayout() {
           </View>
         </LinearGradient>
       ) : (
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.background } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen 
             name="details/[id]" 
             options={{ 
               presentation: 'card', 
-              animation: 'default' 
+              animation: 'slide_from_right' 
             }} 
           />
           <Stack.Screen 
@@ -276,6 +344,34 @@ export default function RootLayout() {
             options={{ 
               presentation: 'modal', 
               animation: 'slide_from_bottom' 
+            }} 
+          />
+          <Stack.Screen 
+            name="vip" 
+            options={{ 
+              presentation: 'card', 
+              animation: 'slide_from_right' 
+            }} 
+          />
+          <Stack.Screen 
+            name="buy-vip" 
+            options={{ 
+              presentation: 'card', 
+              animation: 'slide_from_right' 
+            }} 
+          />
+          <Stack.Screen 
+            name="settings" 
+            options={{ 
+              presentation: 'card', 
+              animation: 'slide_from_right' 
+            }} 
+          />
+          <Stack.Screen 
+            name="admin" 
+            options={{ 
+              presentation: 'card', 
+              animation: 'slide_from_right' 
             }} 
           />
         </Stack>

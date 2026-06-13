@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { fetchRegularApps, AppItem } from '../../constants/data';
 import { ListDownloadBtn } from '../search';
 import { COLORS, SIZES, SHADOWS, SPRING, useThemeUpdate, TXT } from '../../constants/theme';
+import { TabTransition } from '../../components/ui/TabTransition';
 
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
@@ -157,8 +158,9 @@ export default function AppsScreen() {
   const isLightMode = COLORS.background === '#F4F4F6';
 
   return (
-    <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
-      <StatusBar style={isLightMode ? 'dark' : 'light'} />
+    <TabTransition tabPath="/apps">
+      <LinearGradient colors={COLORS.bgGradient} style={styles.container}>
+        <StatusBar style={isLightMode ? 'dark' : 'light'} />
       <View style={styles.header}><Text style={styles.largeTitle}>{TXT.appStoreTitle}</Text></View>
 
       {loading ? (
@@ -212,7 +214,8 @@ export default function AppsScreen() {
           </View>
         </>
       )}
-    </LinearGradient>
+      </LinearGradient>
+    </TabTransition>
   );
 }
 

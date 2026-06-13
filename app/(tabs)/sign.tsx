@@ -22,6 +22,7 @@ const IpaSigner = (() => {
 
 import { FileArchive, Share, Trash2, FolderOpen, Layers, Wrench, X, FileKey, CheckCircle2, Rocket, PlusCircle, ShieldCheck, MoreVertical, Sliders, ChevronDown, ImagePlus, ArrowLeft } from 'lucide-react-native';
 import { COLORS, useThemeUpdate, TXT } from '../../constants/theme';
+import { TabTransition } from '../../components/ui/TabTransition';
 import { startStaticServer } from '../../utils/staticServer';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
@@ -777,6 +778,7 @@ export default function SignScreen() {
   return (
     <View style={[styles.container, { backgroundColor: COLORS.background }]}>
       <StatusBar style={COLORS.background === '#F4F4F6' ? 'dark' : 'light'} />
+      <TabTransition tabPath="/sign">
       <View style={[styles.header, { borderColor: COLORS.border }]}>
         <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
           <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
@@ -857,6 +859,7 @@ export default function SignScreen() {
             scrollEventThrottle={16}
           /> 
       )}
+      </TabTransition>
 
       {/* MODAL MENU 3 CHẤM */}
       <Modal visible={menuVisible} transparent animationType="fade">

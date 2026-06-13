@@ -38,7 +38,15 @@ export default function AdminScreen() {
     homePopupTitle: '',
     homePopupMsg: '',
     homePopupImg: '',
-    homePopupUrl: ''
+    homePopupUrl: '',
+    forceUpdateShow: false,
+    forceUpdateAllowSkip: false,
+    forceUpdateMsg: '',
+    forceUpdateUrl: '',
+    vipPrice14D: 20000,
+    vipPrice30D: 40000,
+    vipPrice1Y: 300000,
+    vipFeaturesText: ''
   });
 
   // State thông báo máy
@@ -119,7 +127,22 @@ export default function AdminScreen() {
 
   const loadFirebaseData = async () => {
     const snapConfig = await getDoc(doc(db, 'settings', 'config'));
-    if (snapConfig.exists()) setSysConfig(snapConfig.data() as any);
+    if (snapConfig.exists()) {
+      const data = snapConfig.data();
+      setSysConfig(prev => ({
+        ...prev,
+        ...data,
+        vipPrice14D: data.vipPrice14D !== undefined ? data.vipPrice14D : 20000,
+        vipPrice30D: data.vipPrice30D !== undefined ? data.vipPrice30D : 40000,
+        vipPrice1Y: data.vipPrice1Y !== undefined ? data.vipPrice1Y : 300000,
+        vipFeaturesText: data.vipFeaturesText !== undefined ? data.vipFeaturesText : `Mở khóa toàn bộ Kho Ứng Dụng Độc Quyền
+Tốc độ tải ứng dụng cực cao (Không giới hạn)
+Không có quảng cáo khó chịu từ hệ thống
+Chứng chỉ luôn được gia hạn tự động ổn định
+Hỗ trợ cài đặt trực tiếp qua OTA nhanh gọn
+Ký và cài đặt file IPA ngoại tuyến của riêng bạn`
+      }));
+    }
     
     // Tải Khách hàng & Tính tổng
     const usersSnap = await getDocs(collection(db, 'users'));
@@ -514,6 +537,95 @@ export default function AdminScreen() {
               </TouchableOpacity>
             </View>
 
+            <Text style={styles.title}>CẤU HÌNH GIÁ VÀ MÔ TẢ GÓI VIP</Text>
+            <View style={styles.userCard}>
+              <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Giá gói Trải Nghiệm 14 ngày (đ):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Ví dụ: 20000" 
+                placeholderTextColor={COLORS.textMuted} 
+                keyboardType="numeric"
+                value={String(sysConfig.vipPrice14D ?? 20000)} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, vipPrice14D: parseInt(txt) || 0})} 
+              />
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Giá gói VIP 1 Tháng (đ):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Ví dụ: 40000" 
+                placeholderTextColor={COLORS.textMuted} 
+                keyboardType="numeric"
+                value={String(sysConfig.vipPrice30D ?? 40000)} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, vipPrice30D: parseInt(txt) || 0})} 
+              />
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Giá gói VIP 1 Năm (đ):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Ví dụ: 300000" 
+                placeholderTextColor={COLORS.textMuted} 
+                keyboardType="numeric"
+                value={String(sysConfig.vipPrice1Y ?? 300000)} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, vipPrice1Y: parseInt(txt) || 0})} 
+              />
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Mô tả quyền lợi VIP (mỗi dòng một quyền lợi):</Text>
+              <TextInput 
+                style={[styles.textArea, { height: 120 }]} 
+                placeholder="Nhập danh sách quyền lợi..." 
+                placeholderTextColor={COLORS.textMuted} 
+                multiline 
+                value={sysConfig.vipFeaturesText} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, vipFeaturesText: txt})} 
+              />
+
+              <TouchableOpacity style={[styles.submitBtn, {marginTop: 20, backgroundColor: '#FFE259'}]} onPress={saveSettings}>
+                <Text style={[styles.submitBtnText, {color: '#000'}]}>LƯU CẤU HÌNH GÓI VIP</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.title}>CẤU HÌNH CẬP NHẬT ỨNG DỤNG (FORCE UPDATE)</Text>
+            <View style={styles.userCard}>
+              <View style={styles.settingRow}>
+                <Text style={styles.settingText}>Bắt buộc cập nhật</Text>
+                <Switch 
+                  value={sysConfig.forceUpdateShow || false} 
+                  onValueChange={(val) => setSysConfig({...sysConfig, forceUpdateShow: val})} 
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={styles.settingText}>Cho phép bỏ qua cập nhật</Text>
+                <Switch 
+                  value={sysConfig.forceUpdateAllowSkip || false} 
+                  onValueChange={(val) => setSysConfig({...sysConfig, forceUpdateAllowSkip: val})} 
+                />
+              </View>
+              
+              <Text style={{color: '#8E8E93', marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Nội dung thông báo cập nhật:</Text>
+              <TextInput 
+                style={styles.textArea} 
+                placeholder="Nhập nội dung yêu cầu cập nhật..." 
+                placeholderTextColor={COLORS.textMuted} 
+                multiline 
+                value={sysConfig.forceUpdateMsg || ''} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, forceUpdateMsg: txt})} 
+              />
+
+              <Text style={{color: '#8E8E93', marginTop: 15, marginBottom: 6, fontSize: 13, fontWeight: '700'}}>Đường dẫn cập nhật (URL):</Text>
+              <TextInput 
+                style={styles.addInput} 
+                placeholder="Nhập link cập nhật (VD: https://...)" 
+                placeholderTextColor={COLORS.textMuted} 
+                value={sysConfig.forceUpdateUrl || ''} 
+                onChangeText={(txt) => setSysConfig({...sysConfig, forceUpdateUrl: txt})} 
+              />
+
+              <TouchableOpacity style={[styles.submitBtn, {marginTop: 20, backgroundColor: '#FF453A'}]} onPress={saveSettings}>
+                <Text style={styles.submitBtnText}>LƯU CẤU HÌNH CẬP NHẬT</Text>
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.title}>THÔNG BÁO TRONG APP (TRANG CHỦ)</Text>
             <View style={styles.userCard}>
               <View style={styles.settingRow}>
@@ -751,9 +863,16 @@ export default function AdminScreen() {
                     ) : null}
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 0.5, borderColor: 'rgba(255, 255, 255, 0.05)' }}>
-                      <Text style={{ color: '#555', fontSize: 11 }}>
-                        Gửi lúc: {new Date(item.time).toLocaleString('vi-VN')}
-                      </Text>
+                      <View>
+                        <Text style={{ color: '#555', fontSize: 11 }}>
+                          Gửi lúc: {new Date(item.time).toLocaleString('vi-VN')}
+                        </Text>
+                        {item.sentCount ? (
+                          <Text style={{ color: COLORS.success, fontSize: 10, fontWeight: '700', marginTop: 2 }}>
+                            Đã gửi: {item.sentCount} thiết bị
+                          </Text>
+                        ) : null}
+                      </View>
                       {isPending ? (
                         <TouchableOpacity 
                           style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,69,58,0.1)', borderRadius: 8 }}
